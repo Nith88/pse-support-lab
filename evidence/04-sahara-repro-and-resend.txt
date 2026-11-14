@@ -1,0 +1,62 @@
+# 1. Fresh upload of samples/sahara-medical-batch-1116.xlsx (seller 5), API direct, quiet system
+import 56652e1a-faca-4d5c-ba9d-443d4318f316:
+Accepted|8|0
+Submitted|32|32
+
+# 2. Status history of one stuck invoice
+SMS-1116-032
+   Parsed - Created from uploaded file
+   Validated - Passed portal validation
+   Submitted - Sent to ASP
+  aspMessageId: ''  aspResponse: None
+
+# 3. Retry submission on a Submitted invoice
+{"error":"only invoices in status Validated or Failed can be retried (current status: Submitted)"}
+  http=409
+{"requeued":0}
+  (batch retry) http=200
+
+# 4. Resend the same file (what Bluepeak asked about)
+import a37b3aac-7440-4425-bdb2-eaee84276e3a:
+Rejected|40
+Document number 'SMS-1116-001' already exists for this seller with status 'Accepted'.
+Document number 'SMS-1116-002' already exists for this seller with status 'Accepted'.
+Document number 'SMS-1116-003' already exists for this seller with status 'Accepted'.
+Document number 'SMS-1116-004' already exists for this seller with status 'Accepted'.
+Document number 'SMS-1116-005' already exists for this seller with status 'Accepted'.
+Document number 'SMS-1116-006' already exists for this seller with status 'Accepted'.
+Document number 'SMS-1116-007' already exists for this seller with status 'Accepted'.
+Document number 'SMS-1116-008' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-009' already exists for this seller with status 'Accepted'.
+Document number 'SMS-1116-010' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-011' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-012' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-013' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-014' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-015' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-016' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-017' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-018' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-019' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-020' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-021' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-022' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-023' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-024' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-025' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-026' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-027' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-028' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-029' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-030' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-031' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-032' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-033' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-034' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-035' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-036' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-037' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-038' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-039' already exists for this seller with status 'Submitted'.
+Document number 'SMS-1116-040' already exists for this seller with status 'Submitted'.
+ASP total received for Sahara now: 16

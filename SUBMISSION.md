@@ -423,40 +423,154 @@
 
 ### Acknowledgement
 
-- **Sent at (exercise clock):**
+- **Sent at (exercise clock):** 11:45 (email received 11:30; first set as P2, first-response target 1 h, so due by 12:30. Re-prioritised to P1 at 12:05, see below)
 - **Reply:**
 
-> …
+> Subject: RE: Sahara Medical - invoices "Submitted" but buyer not receiving them
+>
+> Hello Daniel,
+>
+> Thank you for the clear report, and for holding off on the resend. I understand that your connector sent Sahara Medical's 40 invoices this morning and got a success response, the portal shows them as "Submitted", but Emirates Palm Hospital has only received a few, and many invoices have no ASP reference. I know the hospital's payment run is this week, so I'm treating this as urgent.
+>
+> I'm checking now, invoice by invoice, what the network actually received. **Please keep holding the resend** until I confirm what's safe, so the hospital doesn't receive anything twice.
+>
+> I'll update you by **12:45 today** with what I've found. If a call would help after that, I'm happy to arrange one.
+>
+> Regards,
+> Nitheesh, Product Support, Invoicely Lite
 
 ### Priority and justification
 
-- **Priority:**
+- **Priority:** P2 at first (11:45), **raised to P1 at 12:05**
 - **Why:**
-- **SLA deadlines I am working to:**
+  - *P2 at 11:45:* from the email, one customer had a subset of invoices not delivered. The rest of the portal was working, so it matched "subset of invoices affected" in `docs/sla-matrix.md`.
+  - *P1 from 12:05:* the logs showed the cause is not specific to Sahara. Any customer that sends more than 8 invoices at once has the rest silently left in "Submitted", never delivered. The database shows 769 such invoices across 5 customers, including Marina Bay Hospitality before its go-live. That is "invoices not reaching the ASP for one or more customers", so P1, as the matrix requires when new evidence shows wider impact. It is also silent: the portal says "Submitted", and nothing alerts. Business impact: the hospital's payment run this week.
+  - I told Daniel about the priority change in the 12:45 update, as the matrix asks.
+- **SLA deadlines I am working to:** first response by 12:30 (sent 11:45) / as P1 from 12:05, updates no more than 60 min apart: 12:45, 13:30, 14:30 / resolution or agreed workaround by 16:05 (4 h from the P1 decision).
+- **Status at the resolution target:** no customer workaround exists (see Workaround). The 32 Sahara invoices need an engineering repair, so it stays P1 until they are delivered and the fix is deployed.
 
 ### Investigation log
 
+> Times are mapped onto the exercise clock (Monday 16 Nov 2026). This work ran alongside Incident 2 (P1, updates at 12:15, 13:00, 13:45). The work itself was done in real time; see the time log at the end. The Sahara invoice numbers in the evidence carry the replay tag (for example `SMS-1116-001-GYN6`) in the load run, and the plain numbers (`SMS-1116-001`) in my direct reproduction.
+
 | Time (exercise clock) | What I checked / did | What I found |
 |---|---|---|
-| | | |
+| 11:45 | Acknowledged Daniel | — |
+| 11:50 | Checked Sahara's batch in the database | 40 invoices: **8 Accepted** with an ASP reference, **32 Submitted with an empty ASP reference** ([DB statuses](evidence/04-sahara-db-statuses.txt)) |
+| 11:55 | ASP records: `GET /v1/documents?sender=0235:1006453719` | The ASP received **only the 8** Accepted invoices. The other 32 never reached the network, although the portal says "Submitted" ([ASP records](evidence/04-sahara-asp-received.txt)) |
+| 12:00 | API and ASP logs for those invoices | API: **8 × HTTP 200 and 32 × HTTP 429**, all within the same second. ASP: 32 × `rate limit exceeded`, `retry_after_s: 1`. The API logs each 429 at **INFO** level, not as an error ([logs](evidence/04-sahara-logs-429.txt)) |
+| 12:00 | (Checked Marina Bay's batches for Incident 2) | Batch `mbh-morning-234.xlsx`: Submitted 6, no ASP reference: the same pattern |
+| 12:05 | Read the ASP's fair-use policy and `submit.go` | ASP allows a burst of **8 documents per sender, then 2 per second** (`asp-mock/main.go:35-37`). The API marks an invoice "Submitted" *before* sending (`submit.go:114`), and its response handling covers 200, 422 and 5xx but **not 429** (`submit.go:133-155`). So a throttled invoice is left in "Submitted" for good, and the `Retry-After` header is ignored |
+| 12:05 | Scope across all customers; **raised to P1** | **769** invoices in "Submitted" with no ASP reference across 5 customers (Zayed Port 178, Marina Bay 177, Desert Rose 177, Palm Coast 173, Sahara 64). The ASP's own counter shows `throttled = 769`, the same number ([scope and metrics](evidence/04-scope-and-metrics.txt)) |
+| 12:10 | Escalated to L3. Engineering on-call was already engaged on Incident 2, so I linked the two | — |
+| 12:20 | Reproduced with `samples/sahara-medical-batch-1116.xlsx` on a quiet system | The same result: 8 Accepted, 32 Submitted with no ASP reference. So it is not caused by the morning load; a single 40-invoice batch is enough ([reproduction](evidence/04-sahara-repro-and-resend.txt)) |
+| 12:25 | Status history of a stuck invoice; tried **Retry submission** | History ends at "Submitted – Sent to ASP", with no ASP response stored. Retry is refused: **HTTP 409** "only invoices in status Validated or Failed can be retried". Batch retry re-queues 0 |
+| 12:30 | Simulated Bluepeak's resend: uploaded the same file again | All 40 rejected with AE-BR-09 ("already exists … status 'Accepted'" or "'Submitted'"). The resend added **nothing** at the ASP. So a resend is safe from duplicates, but it does not deliver the 32 either: they are **trapped** |
+| 12:35 | Checked the monitoring | `invoicely_submissions_total` only has the outcomes accepted / rejected / failed (`metrics.go:66-70`), and a 429 increments none of them. So "Submissions by outcome" hides the problem. The only alert rules are for API restarts and 5xx (`rules.yml:10, 50`). Only the ASP-side panel shows throttling. Also, the time-series panel "ASP responses by HTTP status" shows **no 429s at all**: the `code="429"` series is only created when the first 429 arrives, so its first sample is already 32 and `increase()` counts that as 0 (only the codes for submission outcomes are pre-created, `metrics.go:66-70`). The first burst of throttling after any API restart is invisible on that chart ([Prometheus check](evidence/04-prometheus-429-series-start.txt), [screenshot](evidence/04-grafana-submissions-row.png)) |
+| 12:40 | Checked who the 40 invoices are for (the portal showed `SMS-1116-032` going to Coral Reef Resorts LLC) | The batch has **two buyers**: 35 invoices for Emirates Palm Hospital and 5 for **Coral Reef Resorts LLC**. In this morning's batch, the hospital is missing 28 and **Coral Reef Resorts is missing 4** (016, 024, 032, 040). They have not reported it, so they probably have not noticed. Also, which 8 get through depends on timing: 001–008 in the morning run, but 001–007 and 009 in my reproduction (008 throttled). So every invoice has to be checked individually ([buyers](evidence/04-sahara-buyers.txt)) |
+| 12:45 | Update to Daniel (priority change, answers to both questions) | — |
 
 ### Root cause
 
-- **What happened:**
-- **Where** (component, `file:line`):
-- **Why it happens:**
-- **Evidence:**
-- **Confidence and open questions:**
+- **What happened:** The ASP limits how fast one sender can submit: 8 documents at once, then 2 per second. When a batch is bigger than that, the ASP answers the extra invoices with "429 Too Many Requests – try again in 1 second". Invoicely Lite does not handle that answer. It had already marked each invoice "Submitted" before sending, so the 32 refused invoices stayed "Submitted" with no ASP reference, were never sent again, and look delivered in the portal. Only the 8 that got through were delivered: 7 to Emirates Palm Hospital and 1 to a second buyer in the same batch, Coral Reef Resorts.
+- **Where:**
+  - `services/api/internal/submit/submit.go:114`: status set to Submitted before the ASP has answered
+  - `services/api/internal/submit/submit.go:133-155`: response switch has no case for HTTP 429 (or any other unexpected code), so the invoice is left as it is and `Retry-After` is ignored
+  - `services/api/main.go:56`: 4 workers send as fast as they can, so any batch over 8 invoices per seller exceeds the burst
+  - `services/asp-mock/main.go:35-37` and `:274-283`: the ASP's documented fair-use limit and its 429 response (`docs/architecture.md`, "ASP integration": "the document has not been received and should be sent again later")
+  - `services/api/internal/metrics/metrics.go:66-70`: no submission outcome for throttling, so the dashboard and alerts do not see it
+- **Why it happens:** The ASP's rule is documented, but the client only handles success, business rejection and server errors. A throttled invoice falls through the switch, with nothing logged at warning or error level.
+- **Evidence:** [DB statuses](evidence/04-sahara-db-statuses.txt), [ASP records](evidence/04-sahara-asp-received.txt), [API and ASP logs](evidence/04-sahara-logs-429.txt), [reproduction, retry and resend test](evidence/04-sahara-repro-and-resend.txt), [scope across customers and metrics](evidence/04-scope-and-metrics.txt), [buyers in the batch](evidence/04-sahara-buyers.txt)
+- **Screenshots:** [Sahara batch in the portal](evidence/04-portal-sahara-batch.png), [invoice status history](evidence/04-portal-sahara-invoice-history.png), [resend rejected as duplicates](evidence/04-portal-sahara-resend-rejected.png), [Grafana "Submissions to ASP" row](evidence/04-grafana-submissions-row.png) (*Submissions by outcome* shows only 8 accepted; *ASP: documents by outcome (ASP side)* shows 8 accepted and 32 throttled; *ASP responses by HTTP status (since API start)* shows HTTP 200 = 13 and HTTP 429 = 32, but the time-series panel above it shows no 429s, see the investigation log at 12:35)
+- **Confidence and open questions:** High. The counts match exactly in three places (8 accepted / 32 throttled in the logs, the database and the ASP; 769 stuck across customers against 769 throttled at the ASP), and I reproduced it on a quiet system. Which invoices get through depends on the order the workers send them, so the list differs between runs; the invoice numbers in the update to Daniel are from this morning's batch (shown without the replay tag `-GYN6` that the load tool adds). Open: I have not confirmed with engineering the safest way to release the 32 (for example, set them to Failed and use Retry). Before any resend, each invoice must be checked against the ASP records so nothing is delivered twice.
 
 ### Customer resolution reply OR escalation note
 
-- **Which one and why:**
+- **Which one and why:** Both. This is a product defect, and the 32 stuck invoices need a data change that neither support nor the customer can make through the product (Retry is refused for "Submitted"), so I escalated to L3. I keep owning the conversation with Daniel and Sahara.
 
-> …
+> **Update to Daniel (sent 12:45):**
+>
+> Hello Daniel,
+>
+> Here is what I found. I've also raised this to our **highest priority**, because the same problem affects other customers too.
+>
+> **1. Is Invoicely losing invoices?** The problem is on our side, and I'm sorry for the trouble it's causing. Of Sahara's 40 invoices, **8 were delivered** to the network (those are the ones with an ASP reference, the confirmation number the network gives us). **The other 32 were not delivered.** The network asked us to slow down because so many invoices arrived at once, and our portal did not send them again, but it still showed them as "Submitted". They are **not lost**: all 32 are stored in the portal and will be sent once the fix is in. Your connector did nothing wrong; the HTTP 201 you received means the file was accepted correctly.
+>
+> I checked each invoice in our portal against the network's records:
+> - **Delivered (8):** SMS-1116-001 to SMS-1116-008.
+> - **Not delivered (32):** SMS-1116-009 to SMS-1116-040.
+>
+> **Please note: this batch is for two customers, not one.** Most of the invoices are for Emirates Palm Hospital, but 5 are for **Coral Reef Resorts LLC**, and 4 of those were not delivered either (SMS-1116-016, -024, -032 and -040). Coral Reef Resorts may not have noticed yet, so Sahara may want to let them know.
+>
+> **2. Should you resend the batch?** **No, please don't.** I tested it: a resend is rejected as a duplicate, so it won't deliver the 32 (and won't duplicate the 8). We'll send the 32 from our side. Before sending each one, we'll check it against the network's records so the hospital doesn't receive anything twice.
+>
+> **What happens next:** our engineering team has all the details and is working on both the fix and releasing the 32 invoices. I don't have a time from them yet, so I won't guess one. Given the hospital's payment run, I've asked for the 32 to be handled first.
+>
+> I'll update you by **13:30**, and I'll confirm by email when each invoice is delivered.
+>
+> Regards,
+> Nitheesh, Product Support, Invoicely Lite
+
+> **Escalation note (L3, sent 12:10, updated 12:35):**
+>
+> ### Escalation: HTTP 429 from the ASP not handled — throttled invoices stuck in "Submitted", never delivered
+>
+> **Priority:** P1 — invoices silently not reaching the ASP for 5 customers (769 invoices); Sahara Medical's buyer has a payment run this week; Marina Bay Hospitality goes live Wed 18 Nov.
+> **Customer / seller:** Sahara Medical Supplies FZE (seller id 5), via Bluepeak ERP Integrations. Also Zayed Port Logistics (8), Marina Bay Hospitality (3), Desert Rose Trading (1), Palm Coast Electronics (7)
+> **Reported by / at:** Daniel Okafor (Bluepeak, Sahara's integration partner), email to support, 11:30
+> **Affected:** since this morning's uploads; any batch with more than 8 invoices for one seller. Sahara import `77098132-f99b-4f86-9cf2-e635f97f2529` (load run): 32 invoices from `SMS-1116-009-GYN6` onwards; reproduction import `56652e1a-faca-4d5c-ba9d-443d4318f316`. 769 invoices in total (`evidence/04-scope-and-metrics.txt`)
+>
+> **Symptoms (customer view):** invoices show "Submitted" with an empty ASP reference; the buyer never receives them; no error anywhere; Retry is refused; a resend is rejected as a duplicate.
+>
+> **Evidence:**
+> - Payload excerpt: n/a (payloads are valid; the 8 sent first from the same batch were accepted)
+> - ASP response: `HTTP 429`, `Retry-After: 1`, body `{"error":"rate_limited","message":"Too many documents from sender 0235:1006453719. Retry after 1s."}`
+> - Logs (`docker compose logs api | grep '"asp response"' | grep SMS-1116`): 8 × `"status_code":200`, 32 × `"status_code":429`, all at 01:54:55 UTC in the reproduction, logged at INFO. asp-mock: 32 × `rate limit exceeded`, `retry_after_s: 1`
+> - Metrics: `sum by (code) (invoicely_asp_responses_total)` shows 429s; `sum by (outcome) (invoicely_submissions_total)` has no outcome for them; ASP side `sum by (outcome) (asp_documents_total)` → throttled 769. Dashboard "Invoicely Lite – Overview", row "Submissions to ASP"
+> - Database: `SELECT s.name, count(*) FROM invoices i JOIN sellers s ON s.id = i.seller_id WHERE i.status = 'Submitted' AND i.asp_message_id = '' GROUP BY 1;` → 769 across 5 sellers
+>
+> **Steps to reproduce:**
+> 1. On a quiet system, upload `samples/sahara-medical-batch-1116.xlsx` for seller 5 (`curl -F file=@… -F seller_id=5 http://localhost:8080/v1/imports`).
+> 2. After a few seconds: 8 Accepted, 32 Submitted with empty `asp_message_id`.
+> 3. `POST /v1/invoices/{id}/retry` on a Submitted invoice → 409.
+>
+> **What I have already tried / ruled out:** load-related only (ruled out: reproduced on a quiet system); payload problem (ruled out: same batch, first 8 accepted); invoice-level retry and batch retry (refused / re-queues 0); resend of the file (rejected AE-BR-09, nothing delivered).
+>
+> **Suspected cause (with confidence):** High. `services/api/internal/submit/submit.go:133-155` has no case for 429, and `submit.go:114` sets Submitted before the response. Throttled invoices are left in Submitted and never retried.
+>
+> **Workaround in place:** No. Customers and support cannot release Submitted invoices through the product.
+>
+> **Timeline:**
+> - 11:30 — Daniel's email received
+> - 11:45 — acknowledged (P2)
+> - 12:00 — 429s found in the logs
+> - 12:05 — scope confirmed (769 across 5 customers); raised to P1
+> - 12:10 — this escalation; linked to Incident 2 (same on-call)
+> - 12:30 — confirmed that retry and resend do not help
+>
+> **Ask:**
+> 1. **Release the 32 Sahara invoices first** (payment run this week): for each, confirm it is absent from the ASP records, then resubmit (for example set to Failed and retry). Please agree the approach by **13:15** and complete it by **15:00** today.
+> 2. Then the remaining 737 invoices for the other 4 customers, Marina Bay first (go-live Wed). Plan by **15:00**.
+> 3. **Fix:** handle 429 by waiting for `Retry-After` and retrying (keep the invoice Validated or set it to Failed, never leave it Submitted); pace submissions per seller to the ASP's limit; treat any unexpected status as Failed. Deploy estimate by **17:00** today.
+> 4. **Monitoring:** add a "throttled" submission outcome and an alert on invoices in Submitted for more than 15 minutes.
+>
+> **Next customer update due:** 13:30 (Daniel); confirmation to Daniel as each invoice is delivered.
 
 ### Workaround offered
 
+- **For the 32 stuck invoices:** none that the customer or support can apply. Retry is refused for "Submitted" (409) and a resend is rejected (AE-BR-09). Engineering repair requested, with a check against the ASP records first so nothing is sent twice.
+- **Told Daniel:** do not resend; the 8 delivered invoices are safe; we will send the 32 from our side.
+- **Possible interim for future batches (to be tested with engineering first, not offered to the customer yet):** the ASP's bucket refills at 2 documents per second, so batches of at most 8 invoices sent at least 5 seconds apart should not be throttled. I worked this out from the code (`asp-mock/main.go:35-37`); I have not tested it.
+
 ### Prevention ideas
+
+- Handle HTTP 429 properly: honour `Retry-After`, retry automatically, and never leave an invoice in Submitted without an ASP answer.
+- Only mark an invoice Submitted once the ASP has actually received it, or add a separate "Waiting to retry" status that customers can see.
+- Pace submissions per seller to the ASP's fair-use limit instead of sending as fast as the workers can.
+- Treat any unexpected ASP response as Failed (retryable), and log it at warning level or above.
+- Add a "throttled" outcome to `invoicely_submissions_total`, and alert on invoices in Submitted for more than 15 minutes, and on 429 rate.
+- Pre-create the `invoicely_asp_responses_total` series for the expected codes (200, 422, 429, 5xx) at start-up, so the first 429s after a restart show on the dashboard.
+- Let Retry work on invoices stuck in Submitted with no ASP reference, after a check against the ASP records.
 
 ---
 
