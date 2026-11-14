@@ -156,12 +156,15 @@
 > For your customers right now: please ask them **not to upload the same file again** if they got a 502. Their invoices may already be in the portal, and a second upload can be rejected as a duplicate. I'll tell you exactly what's safe once I've checked.
 >
 > On Marina Bay for Wednesday: I don't have an honest answer yet, but I'll give you one by **13:00**, before your call. Next update from me by **10:30**.
+>
+> [Your name], Product Support
 
 ### Priority and justification
 
 - **Priority:** P1
 - **Why:** The first question in `docs/sla-matrix.md` is "can customers get invoices to the ASP at all?". While the API keeps restarting, uploads fail with 502 and invoices stop moving for several customers at once, so the answer is no. The alert is marked critical/production, several customers are affected, and a go-live on Wednesday depends on it.
-- **SLA deadlines I am working to:** first response by 10:12 (sent 09:52) / updates every 30–60 min (10:30, 11:30, 13:00 with the Marina Bay answer) / resolution or agreed workaround by 13:42 (4 h).
+- **SLA deadlines I am working to:** first response by 10:12 (sent 09:52) / updates no more than 60 min apart: 10:30, 11:15, 12:15, 13:00 (Marina Bay answer), 13:45 / resolution or agreed workaround by 13:42 (4 h).
+- **Status at the 13:42 resolution target:** a workaround is in place and tested for invoices stuck in Validated. Invoices stuck in Parsed and imports stuck in Processing still need an engineering data repair, and the restarts will recur until the memory fix is deployed. So it **stays P1**. I will lower it to P2 once engineering's mitigation stops the restarts, and tell Priya when I do.
 
 ### Investigation log
 
@@ -176,13 +179,20 @@
 | 10:15 | Looked at the memory samples | Sawtooth: memory climbs from about 7 MiB to 100–121 MiB of 128 MiB, then drops to about 7 MiB as the restart count goes up ([memory samples](evidence/02-api-memory-restarts-during-load.txt)) |
 | 10:20 | `docker inspect` showed `OOMKilled=false` | Not conclusive: the flag is reset when the container restarts. Checked cAdvisor instead |
 | 10:22 | Prometheus: `container_oom_events_total{container_label_com_docker_compose_service="api"}` | **3**: three out-of-memory kills ([OOM metric](evidence/02-prometheus-oom-events.txt)) |
-| 10:30 | Update sent to Priya | — |
+| 10:30 | **Update 1** to Priya | Confirmed cause of the 502s; advice unchanged; next update 11:15 |
 | 10:35 | Read `importer/sources.go` and `importer.go` | Every upload is stored in memory (raw file, parsed workbook, invoices) and never removed (`sources.go:31-36`, `importer.go:251`) |
 | 10:45 | Is it a leak or only a spike? Uploaded the small Ghaf file 40 times, one at a time | Memory rose steadily, about 1.2 MiB per 92 KB upload (14 → 63 MiB), and did not drop after 20 s idle. **A leak.** About 80–90 uploads fill 128 MB, which matches 240 peak uploads causing 3 restarts ([leak test](evidence/02-sequential-leak-test.txt)) |
 | 10:55 | Checked what the restarts left behind in the database | 20 imports stuck in Processing, 62 invoices stuck in Parsed, 46 stuck in Validated ([DB state](evidence/02-db-state-after-restarts.txt)) |
 | 11:00 | Listed affected customers | Desert Rose, **Marina Bay Hospitality**, Palm Coast Electronics, Zayed Port Logistics: 5 stuck imports each ([affected customers](evidence/02-affected-customers.txt)) |
 | 11:05 | Read `submit.go` and `main.go` | The submission queue is an in-memory channel (`submit.go:65`). Invoices are only queued when an import finishes (`importer.go:281`), and nothing re-queues Validated invoices at start-up (`main.go:56-57`), so a restart strands them |
 | 11:10 | Tested the documented workaround on one stuck import (`POST /v1/imports/{id}/retry`) | 5 Validated invoices re-queued and reached **Accepted**. The 1 Parsed invoice stayed stuck. The batch page's source preview is gone (`"available": false`) ([retry test](evidence/02-retry-workaround-test.txt)) |
+| 11:15 | **Update 2** to Priya with the affected customers and the tested workaround; full escalation note sent to engineering | — |
+| 11:30 | Message to the four affected customers (sent with Priya, see below) | — |
+| 12:00 | Checked Marina Bay's batches ahead of the 13:00 answer | Batch `mbh-morning-234.xlsx`: **Submitted 6, no ASP reference**. The same pattern as Sahara's report (Incident 4, received 11:30), so a second problem affects Marina Bay ([screenshot](evidence/02-portal-stuck-processing.png)) |
+| 12:15 | **Update 3** to Priya | Second issue flagged; Marina Bay answer still due 13:00 |
+| 13:00 | **Update 4**: Marina Bay go-live answer to Priya | — |
+| 13:42 | Resolution target reached | Workaround in place for Validated invoices only; stays P1 (see Priority) |
+| 13:45 | **Update 5** to Priya | Status at the resolution target |
 
 ### Root cause
 
@@ -200,50 +210,114 @@
 
 ### Customer resolution reply OR escalation note
 
-- **Which one and why:** Escalation to L3 (P1, engineering on-call paged at 09:52), because the fix is a code and infrastructure change and the stuck Parsed invoices and Processing imports need a data repair that support cannot do through the product. I keep owning the updates to Priya and the affected customers.
+- **Which one and why:** Escalation to L3 (P1, engineering on-call paged at 09:52, full note at 11:15), because the fix is a code and infrastructure change and the stuck Parsed invoices and Processing imports need a data repair that support cannot do through the product. I keep owning the updates to Priya and the affected customers.
 
-> **Update to Priya (sent 10:30):**
+> **Update 1 to Priya (sent 10:30):**
 >
 > Hi Priya, here's where we are.
 >
-> **What we know:** It is the same problem. The API ran out of memory and restarted 3 times this morning. Each restart caused the 502s, and some invoices that were waiting to be sent were left in "Validated". Four customers are affected that I can see: Desert Rose, Marina Bay Hospitality, Palm Coast Electronics and Zayed Port Logistics.
+> **What we know:** It is the same problem. The API ran out of memory and was restarted automatically 3 times this morning, and each restart interrupted the uploads in progress, which is where the 502s came from.
 >
-> **What we're doing:** Engineering on-call has the full details and is working on the cause. I'm checking each affected customer's invoices.
+> **What we're doing:** Engineering on-call has been paged and has the details. I'm now working out why memory runs out and which customers' invoices were left waiting.
+>
+> **What it means for customers:** the advice from my first message still stands: please don't re-upload files that failed with a 502.
+>
+> Next update by **11:15**.
+>
+> [Your name], Product Support
+
+> **Update 2 to Priya (sent 11:15):**
+>
+> Hi Priya, an update with something customers can do.
+>
+> **What we know:** The API holds every uploaded file in memory and doesn't release it, so it runs out after roughly 80–90 uploads and restarts. Four customers have invoices that were left waiting: Desert Rose, Marina Bay Hospitality, Palm Coast Electronics and Zayed Port Logistics.
+>
+> **What we're doing:** Engineering has the full write-up and I've asked for a plan to stop the restarts by 11:45.
 >
 > **What it means for customers:**
 > - Invoices stuck in "Validated" can be sent now: on the batch page, click **Retry stuck invoices**. I've tested this and they go through. I can also do it for them.
 > - A few invoices are stuck at an earlier step and can't be retried from the portal. Engineering will fix these; customers don't need to do anything.
-> - Please ask customers not to re-upload files that failed with a 502. The invoice numbers may already be in use, and a re-upload can be rejected as a duplicate.
+> - Please still ask customers not to re-upload files that failed with a 502. The invoice numbers may already be in use, and a re-upload can be rejected as a duplicate.
 >
-> Next update by 11:30.
+> I'll send the four customers a short note at 11:30 (text below) unless you'd rather send it yourself. Next update by **12:15**.
+>
+> [Your name], Product Support
 
-> **Update to Priya — Marina Bay go-live (sent 13:00):**
+> **Message to the affected customers (sent 11:30 to Desert Rose, Marina Bay Hospitality, Palm Coast Electronics and Zayed Port Logistics, with Priya in copy):**
+>
+> Subject: Interrupted uploads this morning — what to do
+>
+> Hello,
+>
+> Some of your uploads this morning were interrupted, and you may have seen a "502 Bad Gateway" error. This was a problem on our side, and our engineers are working on it.
+>
+> Your invoices are not lost. Here's what to do:
+> - If a batch shows invoices in **"Validated"**, open the batch and click **Retry stuck invoices**. They will be sent. If you prefer, reply and I'll do it for you.
+> - If some invoices show **"Parsed"**, or a batch still says **"Processing"**, please leave them. We'll fix these on our side; you don't need to do anything.
+> - Please **don't upload the same file again**. The invoice numbers are already in the portal, and a second upload would be rejected as a duplicate.
+>
+> I'll update you by **14:00** today. If anything looks wrong, reply to this email.
+>
+> [Your name], Product Support, Invoicely Lite
+
+> **Update 3 to Priya (sent 12:15):**
+>
+> Hi Priya, a short update.
+>
+> **What we know:** While checking Marina Bay's batches I found a second problem: some of their invoices show "Submitted" but have no ASP reference (the confirmation number we get when the network receives an invoice). It looks the same as an issue Sahara Medical reported at 11:30, which I'm also investigating.
+>
+> **What we're doing:** Engineering is working on the memory problem, and I've added this second issue to what they need to look at.
+>
+> **What it means:** I'm still on track to give you the Marina Bay answer by **13:00**.
+>
+> [Your name], Product Support
+
+> **Update 4 to Priya — Marina Bay go-live (sent 13:00):**
 >
 > Hi Priya, here's my honest view for your call.
 >
-> **Marina Bay was affected this morning:** 5 of their uploads were interrupted by the restarts. Separately, some of their other invoices show "Submitted" but have no ASP reference, which means I can't yet confirm they reached the network. I'm investigating that second issue now; it is also affecting another customer. None of their invoices are lost: they are all in the portal. I'll confirm the status of each one, and that nothing went out twice, by 15:00.
+> **Marina Bay was affected this morning:** 5 of their uploads were interrupted by the restarts. Separately, some of their other invoices show "Submitted" but have no ASP reference, which means I can't yet confirm they reached the network. None of their invoices are lost: they are all in the portal. I'll confirm the status of each one, and that nothing went out twice, by 15:00.
 >
 > **Wednesday:** There are two problems to fix before I'd call go-live safe. First, the API holds every uploaded file in memory, and at this morning's volume it fills up after roughly 80–90 uploads. Second, the "Submitted with no ASP reference" issue above. Neither is specific to Marina Bay, but a go-live adds volume, so the risk is higher on Wednesday unless both fixes are in place. Engineering is working on them, but I don't have confirmed fix dates yet, so I can't promise Wednesday is safe today.
 >
-> **What I suggest you tell their GM:** we found the cause of this morning's interruption, none of their invoices were lost, and we will confirm go-live readiness by **Tuesday 17 Nov, 12:00** once the fix is deployed and tested. I'll give you a go / no-go by then, and I'm happy to join your call if that helps.
+> **What I suggest you tell their GM:** we found the cause of this morning's interruption, none of their invoices were lost, and we will give you a clear **go or no-go for Wednesday by Tuesday 17 Nov, 12:00**. I'm happy to join your call if that helps.
+>
+> Next update by **13:45**.
+>
+> [Your name], Product Support
 
-> **Escalation note (L3, paged 09:52, note sent 11:15):**
+> **Update 5 to Priya (sent 13:45):**
+>
+> Hi Priya, status at the four-hour mark.
+>
+> **What we know:** Customers can send invoices stuck in "Validated" with **Retry stuck invoices**. Invoices stuck at the earlier step, and the restarts themselves, still need engineering's fix, so I'm keeping this at the highest priority.
+>
+> **What we're doing:** [Engineering's mitigation plan and expected time, as confirmed by on-call. If none yet: "I'm chasing engineering for a plan."]
+>
+> **What it means:** No change for customers: retry Validated invoices, don't re-upload.
+>
+> Next update by **14:45**, and the Marina Bay invoice check by 15:00 as promised.
+>
+> [Your name], Product Support
+
+> **Escalation note (L3, on-call paged 09:52; full note sent 11:15):**
 >
 > ### Escalation: API out-of-memory restarts during peak uploads (3 OOM kills), invoices stranded
 >
 > **Priority:** P1 — uploads fail with 502 and invoices stop moving for several customers; Marina Bay Hospitality goes live Wed 18 Nov.
-> **Customer / seller:** Desert Rose (1), Marina Bay Hospitality (3), Palm Coast Electronics (7), Zayed Port Logistics (8); potentially all customers
-> **Reported by / at:** Grafana alert `InvoicelyApiRestarted` 09:42; Priya Nair (CSM) 09:50
-> **Affected:** 20 imports stuck in Processing, 62 invoices stuck in Parsed, 46 in Validated (`evidence/02-db-state-after-restarts.txt`)
+> **Customer / seller:** Desert Rose Trading (seller id 1), Marina Bay Hospitality (3), Palm Coast Electronics (7), Zayed Port Logistics (8); potentially all customers
+> **Reported by / at:** Grafana alert `InvoicelyApiRestarted` to support-oncall, 09:42; Priya Nair (CSM) in #cs-escalations, 09:48, forwarded 09:50
+> **Affected:** since the first restart, at or after 09:27 (the alert counts 3 restarts in the 15 min before 09:42). 20 imports stuck in Processing, 62 invoices stuck in Parsed, 46 in Validated (`evidence/02-db-state-after-restarts.txt`). Example: Marina Bay import `ecaace7f-c1ce-4254-bc4d-d14642599b2d` (`mbh-morning-238.xlsx`): invoices `MBH-1116-GYN6-238-01` to `-05` in Validated, `-06` in Parsed.
 >
 > **Symptoms (customer view):** intermittent "502 Bad Gateway" on upload; invoices sitting in "Validated"; batch page loses its source-row preview.
 >
 > **Evidence:**
-> - Prometheus: `container_oom_events_total{container_label_com_docker_compose_service="api"}` = 3
-> - Memory sawtooth from ~7 MiB to 100–121 MiB, then a restart (5 s samples, `evidence/02-api-memory-restarts-during-load.txt`)
-> - Sequential test: +1.2 MiB per 92 KB upload, not released when idle (`evidence/02-sequential-leak-test.txt`)
-> - loadgen: `20 x Post "http://api:8080/v1/imports": EOF`, `4 x … connect: connection refused`
-> - SQL: `SELECT status, count(*) FROM imports GROUP BY status;` → Processing 20
+> - Payload excerpt: n/a (not invoice-specific)
+> - ASP response / error code: n/a for the restarts (the HTTP 429 issue is escalated separately under Incident 4)
+> - Logs (Loki): `{service="api"} |= "api starting"` → three start-ups at 01:57:09, 01:57:38 and 01:58:09 UTC in the reproduction; loadgen: `20 x Post "http://api:8080/v1/imports": EOF`, `4 x … connect: connection refused`
+> - Metrics: Prometheus `container_oom_events_total{container_label_com_docker_compose_service="api"}` = 3; dashboard "Invoicely Lite – Overview", Containers row (Container memory, Container restarts, API Go heap in use), reproduction window 01:50–02:05 UTC
+> - Memory: sawtooth from ~7 MiB to 100–121 MiB, then a restart (5 s samples, `evidence/02-api-memory-restarts-during-load.txt`); sequential test +1.2 MiB per 92 KB upload, not released when idle (`evidence/02-sequential-leak-test.txt`)
+> - Database: `SELECT status, count(*) FROM imports GROUP BY status;` → Processing 20; invoices by status → Parsed 62, Validated 46
 >
 > **Steps to reproduce:**
 > 1. `docker compose --profile tools run --rm --no-deps tools loadgen load`
@@ -258,19 +332,22 @@
 >
 > **Timeline:**
 > - 09:42 — alert fired (3 restarts in 15 min)
-> - 09:50 — Priya reports 502s and invoices stuck in Validated
+> - 09:48 — Priya reports 502s and invoices stuck in Validated (forwarded 09:50)
 > - 09:52 — Priya acknowledged; engineering on-call paged
 > - 10:22 — OOM kills confirmed from cAdvisor
-> - 10:30 — update to Priya
+> - 10:30 — update 1 to Priya
 > - 10:45 — leak confirmed with the sequential upload test
+> - 11:10 — retry workaround tested on Validated invoices
+> - 11:15 — update 2 to Priya; this note sent
 >
 > **Ask:**
-> 1. **Now:** a mitigation to stop the restarts today (for example an eviction limit or TTL on `SourceCache`, or a temporary higher memory limit while the fix is made). Please confirm the plan by 11:45.
-> 2. **Data repair:** finish or reset the 20 Processing imports and the 62 Parsed invoices. Parsed invoices also block their invoice numbers (AE-BR-09), so customers cannot re-upload them.
-> 3. **Fix:** bound the cache or move sources out of memory; re-queue Validated invoices at start-up.
-> 4. **Go / no-go for Marina Bay (Wed 18 Nov):** I need engineering's view by Tue 17 Nov 10:00.
+> 1. **Acknowledge the page** by 10:07 (15 min). I will chase on-call directly if there is no acknowledgement.
+> 2. **Mitigation today** to stop the restarts (for example an eviction limit or TTL on `SourceCache`, or a temporary higher memory limit while the fix is made). Please confirm the plan by **11:45**.
+> 3. **Data repair:** finish or reset the 20 Processing imports and the 62 Parsed invoices, by **15:00 today** so I can confirm to customers. Parsed invoices also block their invoice numbers (AE-BR-09), so customers cannot re-upload them.
+> 4. **Fix:** bound the cache or move sources out of memory; re-queue Validated invoices at start-up. Please give a deploy estimate by **17:00 today**.
+> 5. **Go / no-go view for Marina Bay** (go-live Wed 18 Nov) by **Tue 17 Nov 10:00**, so I can answer Priya by 12:00.
 >
-> **Next customer update due:** 11:30 (Priya); 13:00 Marina Bay answer.
+> **Next customer update due:** 12:15 (Priya); 13:00 Marina Bay answer; 14:00 affected customers.
 
 ### Workaround offered
 
