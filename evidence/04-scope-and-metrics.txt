@@ -1,0 +1,22 @@
+# Invoices in Submitted with no ASP reference, by seller (all customers)
+            name             | stuck_submitted_no_asp_ref 
+-----------------------------+----------------------------
+ Zayed Port Logistics LLC    |                        178
+ Marina Bay Hospitality LLC  |                        177
+ Desert Rose Trading LLC     |                        177
+ Palm Coast Electronics LLC  |                        173
+ Sahara Medical Supplies FZE |                         64
+(5 rows)
+
+# Prometheus: invoicely_ metrics for ASP outcomes
+query: sum by (code) (invoicely_asp_responses_total)
+   {'code': '200'} = 13
+   {'code': '429'} = 32
+query: sum by (outcome) (invoicely_submissions_total)
+   {'outcome': 'accepted'} = 13
+   {'outcome': 'failed'} = 0
+   {'outcome': 'rejected'} = 0
+query: sum by (outcome) (asp_documents_total)
+   {'outcome': 'accepted'} = 631
+   {'outcome': 'rejected'} = 3
+   {'outcome': 'throttled'} = 769

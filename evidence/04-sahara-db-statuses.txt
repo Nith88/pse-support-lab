@@ -1,0 +1,51 @@
+# Sahara import 77098132-f99b-4f86-9cf2-e635f97f2529 (sahara-medical-batch-1116.xlsx, from the load replay)
+  status   | count | no_asp_ref 
+-----------+-------+------------
+ Accepted  |     8 |          0
+ Submitted |    32 |         32
+(2 rows)
+
+  invoice_number   |  status   |               asp_ref                | updated_utc 
+-------------------+-----------+--------------------------------------+-------------
+ SMS-1116-001-GYN6 | Accepted  | e12db70f-aa93-4f55-ab68-99044246c15d | 01:54:55
+ SMS-1116-002-GYN6 | Accepted  | 847c616e-1f6e-4c8e-8509-0db4684a9733 | 01:54:55
+ SMS-1116-003-GYN6 | Accepted  | 1af34a14-7d60-4f2d-9c08-d12def61bc2a | 01:54:55
+ SMS-1116-004-GYN6 | Accepted  | 58c06cfb-d460-45ea-9413-b02b293f6cd2 | 01:54:55
+ SMS-1116-005-GYN6 | Accepted  | 6601f3c4-be5d-45b9-b4ef-2889a9ee9a30 | 01:54:55
+ SMS-1116-006-GYN6 | Accepted  | 5c39f1c8-9430-4faa-a1ff-5950274d1181 | 01:54:55
+ SMS-1116-007-GYN6 | Accepted  | 4c38431b-4436-498f-8ac5-ae8ba0bca620 | 01:54:55
+ SMS-1116-008-GYN6 | Accepted  | ed919345-3ff7-4833-804e-f2b6d976d127 | 01:54:55
+ SMS-1116-009-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-010-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-011-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-012-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-013-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-014-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-015-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-016-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-017-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-018-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-019-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-020-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-021-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-022-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-023-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-024-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-025-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-026-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-027-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-028-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-029-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-030-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-031-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-032-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-033-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-034-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-035-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-036-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-037-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-038-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-039-GYN6 | Submitted | (empty)                              | 01:54:55
+ SMS-1116-040-GYN6 | Submitted | (empty)                              | 01:54:55
+(40 rows)
+

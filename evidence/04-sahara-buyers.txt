@@ -1,0 +1,18 @@
+# Sahara buyers by status
+import 77098132-f99b-4f86-9cf2-e635f97f2529
+         buyer_name         |  status   | count |                            non_hospital_numbers                            
+----------------------------+-----------+-------+----------------------------------------------------------------------------
+ Coral Reef Resorts LLC     | Accepted  |     1 | SMS-1116-008-GYN6
+ Coral Reef Resorts LLC     | Submitted |     4 | SMS-1116-016-GYN6, SMS-1116-024-GYN6, SMS-1116-032-GYN6, SMS-1116-040-GYN6
+ Emirates Palm Hospital LLC | Accepted  |     7 | 
+ Emirates Palm Hospital LLC | Submitted |    28 | 
+(4 rows)
+
+import 56652e1a-faca-4d5c-ba9d-443d4318f316
+         buyer_name         |  status   | count |                         non_hospital_numbers                         
+----------------------------+-----------+-------+----------------------------------------------------------------------
+ Coral Reef Resorts LLC     | Submitted |     5 | SMS-1116-008, SMS-1116-016, SMS-1116-024, SMS-1116-032, SMS-1116-040
+ Emirates Palm Hospital LLC | Accepted  |     8 | 
+ Emirates Palm Hospital LLC | Submitted |    27 | 
+(3 rows)
+

@@ -1,0 +1,22 @@
+# api log: ASP responses for Sahara invoices (docker compose logs api)
+{"time":"2026-11-14T01:54:55.218227503Z","level":"INFO","msg":"asp response","invoice_id":"4dac77e6-148f-4ab7-8c52-0cfe81a2ed55","invoice_number":"SMS-1116-003-GYN6","status_code":200,"duration_ms":0}
+{"time":"2026-11-14T01:54:55.218301399Z","level":"INFO","msg":"asp response","invoice_id":"a309294d-9f94-4d60-b278-db5dc47d153e","invoice_number":"SMS-1116-004-GYN6","status_code":200,"duration_ms":0}
+{"time":"2026-11-14T01:54:55.219166801Z","level":"INFO","msg":"asp response","invoice_id":"d6de2a59-5ec5-411e-842a-5fba5cb808b1","invoice_number":"SMS-1116-002-GYN6","status_code":200,"duration_ms":0}
+{"time":"2026-11-14T01:54:55.219495019Z","level":"INFO","msg":"asp response","invoice_id":"74513997-3328-415a-a724-7c1409dbec88","invoice_number":"SMS-1116-001-GYN6","status_code":200,"duration_ms":0}
+{"time":"2026-11-14T01:54:55.222880878Z","level":"INFO","msg":"asp response","invoice_id":"a9de9298-534b-4cf6-bf59-83743dc270aa","invoice_number":"SMS-1116-005-GYN6","status_code":200,"duration_ms":0}
+{"time":"2026-11-14T01:54:55.222897577Z","level":"INFO","msg":"asp response","invoice_id":"895684b1-183d-42df-a8f4-1a5b2624aac3","invoice_number":"SMS-1116-006-GYN6","status_code":200,"duration_ms":0}
+{"time":"2026-11-14T01:54:55.223408846Z","level":"INFO","msg":"asp response","invoice_id":"0fdc07ce-3dcc-4a49-9380-d8c63c84552b","invoice_number":"SMS-1116-007-GYN6","status_code":200,"duration_ms":0}
+{"time":"2026-11-14T01:54:55.223903636Z","level":"INFO","msg":"asp response","invoice_id":"ee447607-81f8-43ca-a27a-ecfc04e85422","invoice_number":"SMS-1116-008-GYN6","status_code":200,"duration_ms":0}
+{"time":"2026-11-14T01:54:55.22703388Z","level":"INFO","msg":"asp response","invoice_id":"e875a5bf-ca3e-4e97-8e24-72ee985141af","invoice_number":"SMS-1116-009-GYN6","status_code":429,"duration_ms":0}
+{"time":"2026-11-14T01:54:55.227287943Z","level":"INFO","msg":"asp response","invoice_id":"400d7c03-9aa8-4cd2-8178-a983631e63b8","invoice_number":"SMS-1116-010-GYN6","status_code":429,"duration_ms":0}
+{"time":"2026-11-14T01:54:55.227368514Z","level":"INFO","msg":"asp response","invoice_id":"89f255f4-826b-43d3-8c59-67780716684a","invoice_number":"SMS-1116-012-GYN6","status_code":429,"duration_ms":0}
+{"time":"2026-11-14T01:54:55.227816215Z","level":"INFO","msg":"asp response","invoice_id":"8c7da9c9-c74a-4636-9a1e-1d6ef9324449","invoice_number":"SMS-1116-011-GYN6","status_code":429,"duration_ms":0}
+count by status_code for SMS-1116 invoices:
+      8 "status_code":200
+     32 "status_code":429
+
+# asp-mock log: rate limit warnings for Sahara (0235:1006453719)
+{"time":"2026-11-14T01:54:55.226673884Z","level":"WARN","msg":"rate limit exceeded","sender":"0235:1006453719","retry_after_s":1}
+{"time":"2026-11-14T01:54:55.227053743Z","level":"WARN","msg":"rate limit exceeded","sender":"0235:1006453719","retry_after_s":1}
+{"time":"2026-11-14T01:54:55.227124888Z","level":"WARN","msg":"rate limit exceeded","sender":"0235:1006453719","retry_after_s":1}
+total rate-limit warnings for Sahara: 32
