@@ -1,0 +1,30 @@
+start 01:54:42 UTC
+[01:54:42] replaying customer traffic against http://api:8080 (run GYN6)
+[01:54:43] ghaf         uploading ghaf-cafe-nov-2026.xlsx (92 KB)
+[01:54:43] al-noor      uploading al-noor-fuel-nov-2026.xlsx (93 KB)
+[01:54:43] sahara       uploading sahara-medical-batch-1116.xlsx (99 KB)
+[01:54:43] oasis        uploading oasis-builders-nov-2026.xlsx (169 KB)
+[01:54:44] ghaf         HTTP 201 in 1.6s  import=8ff2fdd6-d29d-4f02-84a7-6c7d150a95b5  status=Completed  invoices=4
+[01:54:45] al-noor      HTTP 201 in 2.7s  import=dbf4f404-57aa-4d10-8808-7ca3d87f918f  status=Completed  invoices=6
+[01:54:52] ghaf         invoices: Rejected 4
+[01:54:53] al-noor      invoices: Accepted 3, Rejected 3
+[01:54:55] sahara       HTTP 201 in 12.2s  import=77098132-f99b-4f86-9cf2-e635f97f2529  status=Completed  invoices=40
+[01:55:03] sahara       invoices: Submitted 32, Accepted 8
+[01:56:43] oasis        HTTP 201 in 120.7s  import=99383621-25cd-4bd2-af5d-4d973aff5f04  status=Completed  invoices=8
+[01:56:51] oasis        invoices: Accepted 8
+[01:56:51] peak       240 uploads from 4 customers, 8 at a time
+[01:57:01] peak       25/240 uploads done (25 ok, 0 failed)
+[01:57:08] peak       50/240 uploads done (50 ok, 0 failed)
+[01:57:18] peak       75/240 uploads done (65 ok, 10 failed)
+[01:57:25] peak       100/240 uploads done (90 ok, 10 failed)
+[01:57:33] peak       125/240 uploads done (115 ok, 10 failed)
+[01:57:38] peak       150/240 uploads done (132 ok, 18 failed)
+[01:57:50] peak       175/240 uploads done (155 ok, 20 failed)
+[01:57:57] peak       200/240 uploads done (180 ok, 20 failed)
+[01:58:04] peak       225/240 uploads done (205 ok, 20 failed)
+[01:58:09] peak       finished: 216 ok, 24 failed
+[01:58:09] peak         20 x Post "http://api:8080/v1/imports": EOF
+[01:58:09] peak          4 x Post "http://api:8080/v1/imports": dial tcp 172.19.0.9:8080: connect: connection
+[01:58:24] summary    imports since start: map[Completed:220 Processing:20]
+[01:58:24] summary    invoices: Parsed 62, Validated 46, Submitted 737, Accepted 610, Rejected 7
+end 01:58:24 UTC

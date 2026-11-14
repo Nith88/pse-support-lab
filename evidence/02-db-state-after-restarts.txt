@@ -1,0 +1,15 @@
+   status   | count 
+------------+-------
+ Processing |    20
+ Completed  |   229
+(2 rows)
+
+  status   | count | oldest_utc | newest_utc 
+-----------+-------+------------+------------
+ Submitted |   737 | 01:54:55   | 01:58:08
+ Accepted  |   610 | 01:54:45   | 01:58:08
+ Parsed    |    62 | 01:57:06   | 01:58:07
+ Validated |    46 | 01:57:07   | 01:58:09
+ Rejected  |     7 | 01:54:43   | 01:54:45
+(5 rows)
+

@@ -1,0 +1,20 @@
+            name            |  status   | count 
+----------------------------+-----------+-------
+ Desert Rose Trading LLC    | Parsed    |    19
+ Desert Rose Trading LLC    | Validated |    11
+ Marina Bay Hospitality LLC | Parsed    |    14
+ Marina Bay Hospitality LLC | Validated |    10
+ Palm Coast Electronics LLC | Parsed    |    16
+ Palm Coast Electronics LLC | Validated |     9
+ Zayed Port Logistics LLC   | Parsed    |    13
+ Zayed Port Logistics LLC   | Validated |    11
+(8 rows)
+
+            name            | imports_stuck_processing 
+----------------------------+--------------------------
+ Desert Rose Trading LLC    |                        5
+ Marina Bay Hospitality LLC |                        5
+ Palm Coast Electronics LLC |                        5
+ Zayed Port Logistics LLC   |                        5
+(4 rows)
+
