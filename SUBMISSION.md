@@ -1,15 +1,15 @@
 # Submission
 
-- **Name:**
-- **Date submitted:**
-- **Repository link:**
-- **Total time spent (real time):**
+- **Name:** Nitheesh Kumar N
+- **Date submitted:** 14 November 2026
+- **Repository link:** https://github.com/Nith88/pse-support-lab
+- **Total time spent (real time):** about 4 h 45 min (2 h on 13–14 Nov night, 2 h 45 min on 14 Nov morning; see the time log)
 
 > Replies below are drafts written on the **exercise clock** (Monday 16 November 2026, Asia/Dubai). Keep your real time in the time log at the end. Put screenshots, log excerpts and query output in `evidence/` and link to them.
 
 > **Required:** the Acknowledgement and Priority sections for **all five** items, and the full write-up (investigation log onwards) for **at least three** items of your choice. For an item you did not fully investigate, replace the remaining sections with "Not investigated — what I would check next: …".
 
-- **Items I fully investigated, and why I chose them:**
+- **Items I fully investigated, and why I chose them:** **2 (API restarts)** and **4 (Sahara)**, because both were P1: invoices not reaching the ASP for several customers, with a go-live and a payment run at stake. **1 (Oasis)**, because it was a month-end close and my first hypothesis for the P1 restarts, so it was investigated as part of that work. **5 (Ghaf Café)**, because a tested fix could unblock her the same day at little cost. **3 (Al Noor)** is acknowledged with a priority and ordered next steps: its invoices are held safely and keep their numbers, so it waited behind the P1s.
 
 ---
 
@@ -686,20 +686,89 @@ These are product suggestions, not an incident escalation.
 
 ### Prioritisation
 
-The order in which you worked the five items, and why. Did you change your mind as you learned more?
+**Arrival, priority and first response (exercise clock, Monday 16 Nov):**
+
+| # | Item | Received | Priority | First response | Worked |
+|---|---|---|---|---|---|
+| 1 | Oasis: upload stuck, "already exists" | 09:05 | P2 (top of P2: month-end) | 09:25 | Fully |
+| 2 | API restarts, 502s, Marina Bay go-live | 09:42 / 09:50 | **P1** | 09:52 (+ on-call paged) | Fully |
+| 3 | Al Noor: BR-CO-15 rejections, auditor | 10:15 | P2 | 10:40 | Acknowledged, next steps only |
+| 4 | Sahara / Bluepeak: "Submitted" but not received | 11:30 | P2 → **P1 at 12:05** | 11:45 | Fully |
+| 5 | Ghaf Café: date format | 12:10 | P3 | 12:35 | Fully (quick, resolved same day) |
+
+**Order I worked them, and why:**
+
+1. **Oasis first (09:05)**, because it was the only item in the queue, it was a month-end close, and the customer could make it worse by re-uploading. The acknowledgement told him to stop uploading within 20 minutes.
+2. **The API alert took over at 09:42.** Several customers at once, 502s and invoices stuck: P1 on the first question of the SLA matrix, so I paged on-call at 09:52 without waiting for a root cause. My first hypothesis for the restarts was Oasis's large file, so the Oasis reproduction became part of the P1 work. It ruled Oasis out as the cause (0 restarts) and explained the Oasis case at the same time. That is why the two investigation logs overlap between 10:00 and 11:00.
+3. **Al Noor (10:15) got a prompt acknowledgement but no deep dive.** Its invoices are held safely and keep their numbers, the customer was told not to change her figures, and the P1s mattered more. I recorded exactly what I would check next.
+4. **Sahara (11:30)** started as P2 (one customer, a subset of invoices). **I raised it to P1 at 12:05** when the logs showed the same unhandled HTTP 429 had left 769 invoices undelivered across 5 customers, including Marina Bay before its go-live, and told the customer about the change.
+5. **Ghaf Café (12:10)** is the product working as documented, so strictly P4. I made it P3 because she was completely blocked, and it could be closed the same day with a tested fix, which took little time between P1 updates.
+
+**Where I changed my mind:**
+- Restarts caused by Oasis's big file: ruled out by reproduction. The real cause was a memory leak that grows with every upload.
+- Sahara: P2 → P1 once the evidence showed wider impact.
+- Marina Bay: my first draft of the go-live answer covered only the restarts. When I found their invoices also stuck in "Submitted" (Incident 4), I changed the answer to say two fixes are needed before Wednesday.
+- Ghaf Café: I expected "just a format issue", but testing showed the **due date** fails too and the portal only shows the first error, so the reply tells her to fix both columns.
+
+**One pattern across the morning:** Incidents 1, 2 and 4 are three different defects, but all three leave invoices in a misleading state ("Processing", "Validated", "Submitted") with nothing alerting on it. I would raise one follow-up with engineering for an alert on invoices that stay in any intermediate status for more than 15 minutes.
 
 ### What I would do differently
 
+- **Plan the shift timeline first.** I investigated in real time and mapped the work onto the exercise clock afterwards, which is why the Oasis and P1 logs overlap. Next time I would sketch the exercise-clock timeline before starting, so every log entry fits one consistent shift.
+- **Take code line numbers only from the source file itself.** Early on I read two files in one combined listing, and 12 citations ended up wrong (`importer.go` offset by 156 lines, `route.ts` by 1). I caught it when a check returned nothing, fixed all of them, and verified every `file:line` reference by printing the actual source line. I would do that verification from the start.
+- **Confirm time zones before gathering evidence.** The logs are UTC, the portal shows Dubai time, and Grafana showed my browser's time zone (UTC+5:30). I first gave a wrong Grafana time range for screenshots. Now each write-up has a clock note.
+- **Keep test data away from customers' accounts.** My 40 test uploads for the memory-leak test went into Ghaf Tree Café's account and now appear in its batch list. In a real system I would use a test seller.
+- **Isolate reproductions.** The morning-load replay mixed several incidents in one dataset. That was useful for scope, but a clean reset before each targeted reproduction would make each evidence set easier to read.
+- **Investigate Al Noor.** With more time, it is the next item: a possible rounding defect in how the portal calculates totals, with an auditor waiting for an explanation.
+
 ### What I learned / what I would need to learn
 
-Be specific: concepts, tools or parts of the system that were new to you, how you got up to speed, and what you would study next.
+**How to escalate, and how to work by priority.** Before this exercise I hadn't worked to an SLA matrix and an escalation policy together. I learned to decide the priority first and write down why, to acknowledge every item within its own clock even while a P1 is running, and to raise a priority when new evidence shows wider impact (Sahara went from P2 to P1). I also learned what makes an escalation note actionable: evidence, steps to reproduce, and an exact ask with a deadline. And that escalating hands over a task, not the customer: I still owe the updates.
+
+**The docs first, then the codebase.** The documentation in `docs/` was the most useful starting point. It explained the status lifecycle, the template rules and the ASP's behaviour, and several answers were already there (for example, the date rule behind Ghaf Café's rejections and the ASP's 429 rate limit behind Sahara's). Going through the codebase early was the best approach: once I knew how an upload flows through the importer, the validator and the submission workers, each incident's symptoms pointed to a specific place in the code.
+
+**Go was new to me.** I hadn't worked with Go before, so I used Claude to explain the code sequences: how the submission queue and workers run, what the in-memory source cache does, and how the ASP's responses are handled. I then checked each explanation by reproducing the behaviour on the running system.
+
+**Specific things that were new and that I used in the write-ups:** the Peppol 5-corner model and what an ASP reference proves; HTTP 429 and `Retry-After`; telling a memory leak from a load spike; reading out-of-memory kills from cAdvisor when Docker's own flag has been reset; Prometheus counters, and why `increase()` doesn't see a series that appears for the first time; Excel text cells versus real date cells.
+
+**What I would study next:** Go itself, so I can read the code without help; Peppol BR-CO rules and rounding in PINT AE (for Al Noor); and designing alerts on "stuck" business states, not only on errors.
 
 ### Time log (real time)
 
+> My local time (IST, UTC+5:30). Morning entries match my git commit times.
+
 | Date | From–to | What I worked on |
 |---|---|---|
-| | | |
+| 13 Nov 2026 | 22:45–23:45 | Read START_HERE, the inbox, the docs and the submission template; planned the approach; started Docker and built the stack |
+| 13–14 Nov 2026 | 23:45–00:45 | Baseline: clean Desert Rose upload, Grafana and logs; read the importer, validator and submission code; Oasis replay, three-upload retry test, portal 504 test; first draft of Incident 1 and review against the communication guidelines |
+| 14 Nov 2026 | 00:45–07:00 | Break (sleep) |
+| 14 Nov 2026 | 07:00–07:15 | Forked the repo, set up a branch per incident, finished and committed Incident 1 |
+| 14 Nov 2026 | 07:15–08:30 | Incident 2: morning load replay, memory and OOM evidence, leak test, write-up, Grafana and portal screenshots, review against the SLA, escalation and communication guidelines |
+| 14 Nov 2026 | 08:30–08:49 | Incident 4: Sahara evidence, reproduction, retry and resend tests, scope across customers, write-up, screenshots |
+| 14 Nov 2026 | 08:49–09:02 | Incident 3: acknowledgement, priority and next steps |
+| 14 Nov 2026 | 09:02–09:17 | Incident 5: file inspection, both fixes tested, write-up; verified every code reference |
+| 14 Nov 2026 | 09:17–09:45 | Overall section, final review, submission |
 
 ### AI usage disclosure
 
-Which tools you used (or "none"), what for, and how you checked their output against the system.
+**Tool:** Claude Code (Anthropic) in the VS Code extension, using the Claude Opus and Sonnet models, for the whole exercise.
+
+**What I used it for:**
+- Reading and explaining the code, docs and inbox, and proposing hypotheses. Go was new to me, so I used it in particular to explain the code sequences (queues, workers, caches, response handling), and checked each explanation by reproducing the behaviour.
+- Running commands on the lab: `docker compose`, `curl` against the API and the ASP, `psql` queries, Prometheus queries, the load generator and reproductions.
+- Drafting the write-ups, customer replies and escalation notes in this file, and checking them against `docs/customer-communication.md`, `docs/sla-matrix.md` and `docs/escalation-policy.md`.
+- Git housekeeping: branches per incident, commit messages, syncing after each merge.
+
+**What I did myself:**
+- Set up the environment: installed and started Docker Desktop, gave it enough memory, and got the stack running.
+- Drove the reproduction of every incident: decided what to reproduce and when, approved each run (the Oasis retries, the morning load replay, the Sahara resend test, the Ghaf fix tests) and both database resets, and watched each one in the portal and in Grafana. With the help of claude I executed the commands and I checked the results on screen.
+- Set the order and the priorities with it, and chose which items to investigate fully.
+- Took every screenshot in the browser. Two of them changed the write-ups: one showed the time-zone mismatch in Grafana, and one showed Coral Reef Resorts as a second buyer in the Sahara batch.
+- Reviewed and edited every draft, and made every commit, push and merge.
+
+**How I checked its output against the system:**
+- Every root cause is backed by a reproduction on the running lab, with the commands and output saved in `evidence/`; the database, the ASP's own records and the logs had to agree (for example 769 stuck invoices against 769 throttled at the ASP).
+- I treated its hypotheses as hypotheses until tested. Two were wrong and were ruled out by evidence: Oasis's large file causing the restarts, and Docker's `OOMKilled=false` meaning no out-of-memory kill.
+- Code references: every `file:line` in this document was checked by printing the actual source line. This caught 12 wrong line numbers the tool had produced from a combined listing; all are corrected.
+- Customer messages: each one was reviewed against the communication guidelines, which caught unverified statements in early drafts ("your invoices aren't lost" before anything was checked, "nothing has been sent twice" before the ASP records were compared); these were removed or made conditional.
+- My screenshots showed that its Grafana time range was wrong (it had assumed Dubai time, but Grafana used my browser's UTC+5:30); this was corrected and a clock note added.
