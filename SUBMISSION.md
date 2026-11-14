@@ -382,40 +382,53 @@
 
 ### Acknowledgement
 
-- **Sent at (exercise clock):**
+- **Sent at (exercise clock):** 10:40 (email received 10:15; P2 first-response target is 1 h, so due by 11:15. Sent between P1 actions on Incident 2, after the 10:30 update to Priya)
 - **Reply:**
 
-> …
+> Subject: RE: Invoices rejected with BR-CO-15 – November fuel invoices
+>
+> Dear Fatima,
+>
+> Thank you for the detailed message and for attaching the file. I understand that several of your November fuel invoices were rejected with BR-CO-15, while others prepared in exactly the same way were accepted, and that your external auditor has asked for an explanation.
+>
+> BR-CO-15 is a check made by our delivery partner: the invoice total including VAT must equal the total before VAT plus the VAT. One point that may help already: those totals are **not taken from your file**. Our portal calculates them from your invoice lines. So I'm starting by checking how the portal calculated the totals on your rejected invoices, compared with the accepted ones.
+>
+> In the meantime:
+> - The rejected invoices were **not sent** to your customers, and their invoice numbers are **not used up**, so they can still be issued under the same numbers once we know the cause.
+> - Please **don't change your quantities, prices or line amounts** to make the totals fit. Your dispatch figures should stay as they are until I've confirmed where the difference comes from.
+>
+> I'll update you by **13:00 today**. Once I know the cause, I'll also give you a written explanation you can share with your auditor.
+>
+> Kind regards,
+> Nitheesh, Product Support, Invoicely Lite
 
 ### Priority and justification
 
-- **Priority:**
-- **Why:**
-- **SLA deadlines I am working to:**
+- **Priority:** P2
+- **Why:** A subset of one customer's invoices (3 of 6 in the replay of this morning's traffic, [load output](evidence/02-load-output.txt)) is rejected, while the rest of the portal works. That is "subset of invoices rejected" in `docs/sla-matrix.md`. The auditor review raises the business impact, but there is no same-day legal or payment deadline in the email, and the rejected invoices can be issued later under the same numbers. If the cause turns out to be in how the portal calculates totals, it would affect every customer with 3-decimal prices, and I would re-check the priority then.
+- **SLA deadlines I am working to:** first response by 11:15 (sent 10:40) / updates every 2–4 h: 13:00, 16:00, then Tuesday 09:00 / resolution target 8 business hours, so Tuesday 17 Nov 08:15 (7 h 45 min on Monday until 18:00, then the clock pauses until 08:00 Tuesday).
 
-### Investigation log
+### Not investigated — what I would check next
 
-| Time (exercise clock) | What I checked / did | What I found |
-|---|---|---|
-| | | |
+**Why I did not fully investigate it on this shift:** Incidents 2 and 4 were P1 (invoices not reaching the ASP for several customers, a go-live and a payment run), and Incident 1 was a month-end close. This one is P2, the rejected invoices are held safely and can be issued later under the same numbers, and the customer has been told not to change anything. So I gave the deep investigation time to the P1s and kept Al Noor on its SLA updates.
 
-### Root cause
+**What I already know (not yet investigated):**
+- In the replay of this morning's traffic, Al Noor's file gave **3 Accepted and 3 Rejected** ([load output](evidence/02-load-output.txt), import `dbf4f404-57aa-4d10-8808-7ca3d87f918f`).
+- Per `docs/template-field-guide.md`, invoice totals are calculated by the portal from the lines, not read from the file, and `Item net price*` may have 3 decimals ("Fuel and other quantity-priced goods often use 3 decimals").
+- My working hypothesis, **unconfirmed**: a rounding difference in how the portal adds up line amounts, VAT per category and the invoice totals when prices have 3 decimals. The total including VAT is then off by a fils or so on some invoices but not others. Which invoices fail would depend on the numbers on each one, which would explain "prepared in exactly the same way" but different results.
 
-- **What happened:**
-- **Where** (component, `file:line`):
-- **Why it happens:**
-- **Evidence:**
-- **Confidence and open questions:**
+**What I would check next, in order:**
+1. **The rejected invoices themselves.** For import `dbf4f404-…`: `SELECT invoice_number, status, total_excl_vat, total_vat, total_incl_vat, errors FROM invoices WHERE import_id = '…' ORDER BY invoice_number;` Then the full ASP response on one rejected invoice (`GET /v1/invoices/{id}`, field `aspResponse`) to see the exact amounts the ASP compared.
+2. **The payload the portal sent.** On the invoice page, open "PINT AE payload (JSON)" and compare the totals `taxExclusiveAmount`, `taxAmount` and `taxInclusiveAmount` (defined in `pint.go:53-56`) with the line amounts. Then recalculate by hand: sum of line net amounts, VAT at 5%, rounded to 2 decimals at each step.
+3. **How the portal calculates totals.** Read `services/api/internal/pint/pint.go` (the mapping from rows to the PINT AE invoice): where it rounds (per line, per VAT category, or only at the end), and whether it uses the line net amount from the file or recalculates quantity × price with 3 decimals.
+4. **How the ASP checks BR-CO-15.** Read the BR-CO-15 check in `services/asp-mock/main.go`: whether it compares exact values or allows a rounding tolerance, and to how many decimals.
+5. **Compare with what worked before.** Al Noor's October file (seeded import, 4 invoices, all Accepted): were the prices 3-decimal too, or does the difference only appear with certain values?
+6. **Decide the next step from the result:**
+   - If the portal's calculation is inconsistent (for example rounding the sum differently from the parts), it is a product defect. I would escalate to L3 with the hand calculation as evidence, and tell Fatima clearly that the error was ours, not in her figures, with a written explanation for the auditor.
+   - If the file has a real inconsistency (for example a line amount that doesn't match quantity × price beyond what AE-BR-08 allows), I would explain exactly which line and how to correct it.
+   - Either way: confirm how the rejected invoices can be issued under the same numbers, and test that before telling her.
 
-### Customer resolution reply OR escalation note
-
-- **Which one and why:**
-
-> …
-
-### Workaround offered
-
-### Prevention ideas
+**Customer updates while it is open:** 13:00 (what I've checked and what's next), 16:00, then Tuesday 09:00 at the latest, each with the next update time, per the P2 cadence.
 
 ---
 
