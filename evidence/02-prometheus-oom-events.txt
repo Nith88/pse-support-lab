@@ -1,0 +1,2 @@
+# Prometheus query: container_oom_events_total{container_label_com_docker_compose_service="api"}
+invoicely-lite-api-1 = 3

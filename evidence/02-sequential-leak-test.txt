@@ -1,0 +1,11 @@
+Sequential uploads of ghaf-cafe-nov-2026.xlsx (92 KB), one at a time
+before: restarts=3 mem=14.34MiB / 128MiB
+after 5 uploads: restarts=3 mem=17.74MiB / 128MiB
+after 10 uploads: restarts=3 mem=23.12MiB / 128MiB
+after 15 uploads: restarts=3 mem=29.27MiB / 128MiB
+after 20 uploads: restarts=3 mem=36.55MiB / 128MiB
+after 25 uploads: restarts=3 mem=44.02MiB / 128MiB
+after 30 uploads: restarts=3 mem=48.17MiB / 128MiB
+after 35 uploads: restarts=3 mem=58.4MiB / 128MiB
+after 40 uploads: restarts=3 mem=61.95MiB / 128MiB
+20 s idle later: mem=63.16MiB / 128MiB
