@@ -65,7 +65,7 @@
   - `services/api/internal/store/store.go:300-302` together with `importer.go:243`: invoices still in progress count as duplicates
 - **Why it happens:** The work grows with the number of rows (600 rows × 0.2 s = 120 s), the timeout in front of it is fixed at 60 s, and the portal gives no sign that the first upload is still running.
 - **Evidence:** [replay output](evidence/01-oasis-replay-output.txt), [retry run](evidence/01-oasis-retry-repro.txt), [per-invoice outcomes](evidence/01-oasis-retry-per-invoice.txt), [ASP count](evidence/01-oasis-asp-received.txt), [portal proxy test](evidence/01-oasis-via-portal-proxy.txt), screenshots [processing](evidence/01-oasis-portal-processing.png), [completed](evidence/01-oasis-portal-completed-120s.png) and [Grafana](evidence/01-grafana-overview-oasis-replay.png)
-- **Confidence and open questions:** High on the timing, the 504 and the duplicate mechanism, because I reproduced each one. Medium on Rashid's exact outcome, because his click timing was different from mine. I have not tested a file split into smaller parts yet.
+- **Confidence and open questions:** High on the timing, the 504 and the duplicate mechanism, because I reproduced each one. Medium on Rashid's exact outcome, because his click timing was different from mine. The invoice list in the 11:00 update comes from my reproduction, where the portal and the ASP records agree one to one on all 8 message ids ([sent list](evidence/01-oasis-sent-list.txt)); on a live shift I would run the same two checks on his data right before sending. I have not tested a file split into smaller parts yet.
 
 ### Customer resolution reply OR escalation note
 
@@ -79,9 +79,22 @@
 >
 > **What happened:** Your November file has 600 lines, and the portal needs about two minutes to check it. After one minute the portal stops waiting and shows an error, even though your file keeps being processed behind the scenes. Each time you uploaded again, the new copy ran into the earlier copy, which is why you saw "already exists". You did nothing wrong.
 >
-> **1. Which invoices have been sent?** [Before sending, check the ASP records and the portal for each invoice number and paste the list here: invoice number, status, ASP reference. "Accepted" means our delivery partner has received it and it is on its way to your customer. Only say that nothing was sent twice if the ASP records show it.]
+> **1. Which invoices have been sent?** All 8 of your November invoices have been sent, each exactly once. I checked both our portal and the records of our delivery partner (the ASP, the service that passes invoices to your customers). "Accepted" means the ASP has received the invoice and it is on its way to your customer; the ASP reference is its confirmation number.
 >
-> **2. What to do now:** Please don't upload the whole file again. The "already exists" messages on invoices that also show Accepted need no action. If any invoice has no Accepted copy, tell me and I'll confirm the safe way to send just those.
+> | Invoice | Status | ASP reference (first 8 characters) |
+> |---|---|---|
+> | OBS-2611-001 | Accepted | 03b4746d |
+> | OBS-2611-002 | Accepted | e52ec6af |
+> | OBS-2611-003 | Accepted | 52fb2a88 |
+> | OBS-2611-004 | Accepted | dd139e6d |
+> | OBS-2611-005 | Accepted | 9ce96746 |
+> | OBS-2611-006 | Accepted | b714ed71 |
+> | OBS-2611-007 | Accepted | 127440ff |
+> | OBS-2611-008 | Accepted | 3e07176d |
+>
+> The other entries you see marked "already exists" are the extra copies from your repeat uploads. They were stopped by the portal and never sent, so your customers will not receive duplicates.
+>
+> **2. What to do now:** Nothing more is needed for November: all 8 invoices are out, so you can tell your controller the period can close. Please don't upload the file again; the "already exists" messages need no action. For next month, I'll send you advice on splitting the file before you upload, so this doesn't happen again.
 >
 > I've passed the cause to our engineering team with all the details. I'll update you again by **14:00**, whatever the news. If a call would help, I'm available.
 >
@@ -157,7 +170,7 @@
 >
 > On Marina Bay for Wednesday: I don't have an honest answer yet, but I'll give you one by **13:00**, before your call. Next update from me by **10:30**.
 >
-> [Your name], Product Support
+> Nitheesh, Product Support
 
 ### Priority and justification
 
@@ -224,7 +237,7 @@
 >
 > Next update by **11:15**.
 >
-> [Your name], Product Support
+> Nitheesh, Product Support
 
 > **Update 2 to Priya (sent 11:15):**
 >
@@ -241,7 +254,7 @@
 >
 > I'll send the four customers a short note at 11:30 (text below) unless you'd rather send it yourself. Next update by **12:15**.
 >
-> [Your name], Product Support
+> Nitheesh, Product Support
 
 > **Message to the affected customers (sent 11:30 to Desert Rose, Marina Bay Hospitality, Palm Coast Electronics and Zayed Port Logistics, with Priya in copy):**
 >
@@ -258,7 +271,7 @@
 >
 > I'll update you by **14:00** today. If anything looks wrong, reply to this email.
 >
-> [Your name], Product Support, Invoicely Lite
+> Nitheesh, Product Support, Invoicely Lite
 
 > **Update 3 to Priya (sent 12:15):**
 >
@@ -270,7 +283,7 @@
 >
 > **What it means:** I'm still on track to give you the Marina Bay answer by **13:00**.
 >
-> [Your name], Product Support
+> Nitheesh, Product Support
 
 > **Update 4 to Priya — Marina Bay go-live (sent 13:00):**
 >
@@ -284,7 +297,7 @@
 >
 > Next update by **13:45**.
 >
-> [Your name], Product Support
+> Nitheesh, Product Support
 
 > **Update 5 to Priya (sent 13:45):**
 >
@@ -292,13 +305,13 @@
 >
 > **What we know:** Customers can send invoices stuck in "Validated" with **Retry stuck invoices**. Invoices stuck at the earlier step, and the restarts themselves, still need engineering's fix, so I'm keeping this at the highest priority.
 >
-> **What we're doing:** [Engineering's mitigation plan and expected time, as confirmed by on-call. If none yet: "I'm chasing engineering for a plan."]
+> **What we're doing:** I'm chasing engineering on-call for the mitigation plan I asked for by 11:45, and for the repair of the stuck invoices, which I've asked for by 15:00. I'll pass on their plan and timing as soon as I have it; I won't guess a time before they confirm it.
 >
 > **What it means:** No change for customers: retry Validated invoices, don't re-upload.
 >
 > Next update by **14:45**, and the Marina Bay invoice check by 15:00 as promised.
 >
-> [Your name], Product Support
+> Nitheesh, Product Support
 
 > **Escalation note (L3, on-call paged 09:52; full note sent 11:15):**
 >
