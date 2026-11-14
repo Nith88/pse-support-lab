@@ -1,0 +1,7 @@
+Sheet Invoices, date columns: {'D': 'Invoice issue date*', 'E': 'Payment due date*'}
+  D2: cell type='inlineStr'    value='13/11/2026'
+  E2: cell type='inlineStr'    value='13/12/2026'
+  D3: cell type='inlineStr'    value='13/11/2026'
+  E3: cell type='inlineStr'    value='13/12/2026'
+  D4: cell type='inlineStr'    value='13/11/2026'
+  E4: cell type='inlineStr'    value='13/12/2026'
