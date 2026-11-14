@@ -1,0 +1,17 @@
+# Original file (dates typed as text 13/11/2026) - from this morning's replay
+GTC-118-GYN6|Rejected|AE-BR-04|[Invoice issue date*] must be a date in YYYY-MM-DD format (got '13/11/2026').|4
+GTC-119-GYN6|Rejected|AE-BR-04|[Invoice issue date*] must be a date in YYYY-MM-DD format (got '13/11/2026').|4
+GTC-120-GYN6|Rejected|AE-BR-04|[Invoice issue date*] must be a date in YYYY-MM-DD format (got '14/11/2026').|6
+GTC-121-GYN6|Rejected|AE-BR-04|[Invoice issue date*] must be a date in YYYY-MM-DD format (got '15/11/2026').|2
+
+# ghaf-fixA-iso-text.xlsx
+GTC-118|Accepted|2026-11-13|4325b405-6aa6-44c9-88d3-3d18e49422f5
+GTC-119|Accepted|2026-11-13|0027c5ca-57b7-4174-992d-077a4cac14c3
+GTC-120|Accepted|2026-11-14|80a74cea-2c07-4028-8ae8-3ccb8d330f03
+GTC-121|Accepted|2026-11-15|552be4f2-58f9-46db-8845-6dd5e481a886
+
+# ghaf-fixB-real-dates.xlsx
+GTC-118-B|Accepted|2026-11-13|fe5ac06a-41b3-4779-b057-08d180521205
+GTC-119-B|Accepted|2026-11-13|87a563b7-b691-4171-8035-d00a093cf62b
+GTC-120-B|Accepted|2026-11-14|02e6449a-5310-4d1d-96ca-ccb2bc8db0a8
+GTC-121-B|Accepted|2026-11-15|9ad9f075-4741-4858-9fc2-02f2683095d5

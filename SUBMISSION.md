@@ -51,18 +51,18 @@
 | 10:05 | Replayed the Oasis upload on a clean system | HTTP 201 after **120.7 s**, all 8 invoices Accepted, API restarts 0 ([replay output](evidence/01-oasis-replay-output.txt)) |
 | 10:20 | Hypothesis: the API crashes on large files (link to the restart alert) | **Ruled out.** `restarts=0`, `oomkilled=false` during the replay |
 | 10:30 | Reset the database and uploaded the file three times, 30 s apart, directly to the API | All returned 201 after about 121 s. Upload 1 = 1 Accepted / 7 Rejected, upload 2 = 8 Rejected, upload 3 = 7 Accepted / 1 Rejected. Each invoice number was Accepted exactly once, and the ASP received 8 documents ([per invoice](evidence/01-oasis-retry-per-invoice.txt), [ASP count](evidence/01-oasis-asp-received.txt)) |
-| 10:45 | Read `route.ts` in the web app | The portal proxy stops waiting after 60 s (`UPSTREAM_TIMEOUT_MS`, line 7) |
+| 10:45 | Read `route.ts` in the web app | The portal proxy stops waiting after 60 s (`UPSTREAM_TIMEOUT_MS`, line 6) |
 | 10:50 | Uploaded through the portal (port 3000) | **HTTP 504 "Gateway Timeout" after exactly 60 s**; the API kept working in the background ([proxy test](evidence/01-oasis-via-portal-proxy.txt)) |
-| 10:55 | Checked how the duplicate rule treats in-progress invoices | `store.go:300` ignores only Rejected invoices, and `importer.go:243` saves invoices as Parsed before validating them. The mid-run screenshot shows "Parsed 7, Validated 1" ([screenshot](evidence/01-oasis-portal-processing.png)) |
+| 10:55 | Checked how the duplicate rule treats in-progress invoices | `store.go:300` ignores only Rejected invoices, and `importer.go:87` saves invoices as Parsed before validating them. The mid-run screenshot shows "Parsed 7, Validated 1" ([screenshot](evidence/01-oasis-portal-processing.png)) |
 
 ### Root cause
 
 - **What happened:** A normal-sized monthly file takes about 2 minutes to process, but the portal stops waiting after 60 s and shows an error page. The import carries on in the API. Rashid retried, and each retry's invoices collided with invoices from the earlier uploads that were still being processed, producing "already exists" messages.
 - **Where:**
   - `services/api/internal/validate/validate.go:165-166`: one Peppol lookup per row, no cache
-  - `services/api/internal/importer/importer.go:193`: whole import runs inside the upload request
-  - `web/app/api/[...path]/route.ts:7`: 60 s proxy timeout
-  - `services/api/internal/store/store.go:300-302` together with `importer.go:243`: invoices still in progress count as duplicates
+  - `services/api/internal/importer/importer.go:37`: whole import runs inside the upload request
+  - `web/app/api/[...path]/route.ts:6`: 60 s proxy timeout
+  - `services/api/internal/store/store.go:300-302` together with `importer.go:87`: invoices still in progress count as duplicates
 - **Why it happens:** The work grows with the number of rows (600 rows × 0.2 s = 120 s), the timeout in front of it is fixed at 60 s, and the portal gives no sign that the first upload is still running.
 - **Evidence:** [replay output](evidence/01-oasis-replay-output.txt), [retry run](evidence/01-oasis-retry-repro.txt), [per-invoice outcomes](evidence/01-oasis-retry-per-invoice.txt), [ASP count](evidence/01-oasis-asp-received.txt), [portal proxy test](evidence/01-oasis-via-portal-proxy.txt), screenshots [processing](evidence/01-oasis-portal-processing.png), [completed](evidence/01-oasis-portal-completed-120s.png) and [Grafana](evidence/01-grafana-overview-oasis-replay.png)
 - **Confidence and open questions:** High on the timing, the 504 and the duplicate mechanism, because I reproduced each one. Medium on Rashid's exact outcome, because his click timing was different from mine. The invoice list in the 11:00 update comes from my reproduction, where the portal and the ASP records agree one to one on all 8 message ids ([sent list](evidence/01-oasis-sent-list.txt)); on a live shift I would run the same two checks on his data right before sending. I have not tested a file split into smaller parts yet.
@@ -125,7 +125,7 @@
 >
 > **What I have already tried / ruled out:** API crash or out-of-memory (restarts 0, no OOM kill).
 >
-> **Suspected cause (with confidence):** High. `route.ts:7` timeout against `validate.go:165` per-row lookup, plus `store.go:300` counting in-progress invoices as duplicates.
+> **Suspected cause (with confidence):** High. `route.ts:6` timeout against `validate.go:165` per-row lookup, plus `store.go:300` counting in-progress invoices as duplicates.
 >
 > **Workaround in place:** yes. The customer is told not to re-upload, and large files can be split into smaller parts (to be verified).
 >
@@ -193,11 +193,11 @@
 | 10:20 | `docker inspect` showed `OOMKilled=false` | Not conclusive: the flag is reset when the container restarts. Checked cAdvisor instead |
 | 10:22 | Prometheus: `container_oom_events_total{container_label_com_docker_compose_service="api"}` | **3**: three out-of-memory kills ([OOM metric](evidence/02-prometheus-oom-events.txt)) |
 | 10:30 | **Update 1** to Priya | Confirmed cause of the 502s; advice unchanged; next update 11:15 |
-| 10:35 | Read `importer/sources.go` and `importer.go` | Every upload is stored in memory (raw file, parsed workbook, invoices) and never removed (`sources.go:31-36`, `importer.go:251`) |
+| 10:35 | Read `importer/sources.go` and `importer.go` | Every upload is stored in memory (raw file, parsed workbook, invoices) and never removed (`sources.go:31-36`, `importer.go:95`) |
 | 10:45 | Is it a leak or only a spike? Uploaded the small Ghaf file 40 times, one at a time | Memory rose steadily, about 1.2 MiB per 92 KB upload (14 → 63 MiB), and did not drop after 20 s idle. **A leak.** About 80–90 uploads fill 128 MB, which matches 240 peak uploads causing 3 restarts ([leak test](evidence/02-sequential-leak-test.txt)) |
 | 10:55 | Checked what the restarts left behind in the database | 20 imports stuck in Processing, 62 invoices stuck in Parsed, 46 stuck in Validated ([DB state](evidence/02-db-state-after-restarts.txt)) |
 | 11:00 | Listed affected customers | Desert Rose, **Marina Bay Hospitality**, Palm Coast Electronics, Zayed Port Logistics: 5 stuck imports each ([affected customers](evidence/02-affected-customers.txt)) |
-| 11:05 | Read `submit.go` and `main.go` | The submission queue is an in-memory channel (`submit.go:65`). Invoices are only queued when an import finishes (`importer.go:281`), and nothing re-queues Validated invoices at start-up (`main.go:56-57`), so a restart strands them |
+| 11:05 | Read `submit.go` and `main.go` | The submission queue is an in-memory channel (`submit.go:65`). Invoices are only queued when an import finishes (`importer.go:125`), and nothing re-queues Validated invoices at start-up (`main.go:56-57`), so a restart strands them |
 | 11:10 | Tested the documented workaround on one stuck import (`POST /v1/imports/{id}/retry`) | 5 Validated invoices re-queued and reached **Accepted**. The 1 Parsed invoice stayed stuck. The batch page's source preview is gone (`"available": false`) ([retry test](evidence/02-retry-workaround-test.txt)) |
 | 11:15 | **Update 2** to Priya with the affected customers and the tested workaround; full escalation note sent to engineering | — |
 | 11:30 | Message to the four affected customers (sent with Priya, see below) | — |
@@ -212,9 +212,9 @@
 - **What happened:** The API keeps a copy of every uploaded file in memory and never releases it. During the morning peak, memory reached the container's 128 MB limit and the API was killed and restarted three times. Uploads in progress at each restart failed (the 502s). Invoices that had been checked but not yet sent were held in a queue that also lives only in memory, so they were lost from it and stayed in "Validated".
 - **Where:**
   - `services/api/internal/importer/sources.go:31-36`: `SourceCache.Put` adds an entry per upload; nothing ever removes one (`StoredAt` is set but never used)
-  - `services/api/internal/importer/importer.go:251`: every import is put in the cache
+  - `services/api/internal/importer/importer.go:95`: every import is put in the cache
   - `docker-compose.yml:60-62`: 128 MB limit, no swap, automatic restart
-  - `services/api/internal/submit/submit.go:65` and `importer.go:281`: in-memory submission queue; `main.go:56-57`: nothing re-queues stranded invoices at start-up
+  - `services/api/internal/submit/submit.go:65` and `importer.go:125`: in-memory submission queue; `main.go:56-57`: nothing re-queues stranded invoices at start-up
 - **Why it happens:** Memory grows with every upload, for every customer, until the process is killed. The more uploads, the sooner it happens, so the problem gets worse as volume grows.
 - **Evidence:** [load output](evidence/02-load-output.txt), [memory samples](evidence/02-api-memory-restarts-during-load.txt), [OOM metric](evidence/02-prometheus-oom-events.txt), [leak test](evidence/02-sequential-leak-test.txt), [DB state](evidence/02-db-state-after-restarts.txt), [affected customers](evidence/02-affected-customers.txt), [retry test](evidence/02-retry-workaround-test.txt)
 - **Screenshots:** [alert firing](evidence/02-grafana-alert-firing.png), [OOM kills in Prometheus](evidence/02-prometheus-oom-events.png), [API restarts in Loki](evidence/02-loki-api-restarts.png), [container memory, restarts and Go heap](evidence/02-grafana-container-memory-restarts.png), [stuck imports in the portal](evidence/02-portal-stuck-processing.png), [Marina Bay batch stuck](evidence/02-portal-marina-bay-batch-stuck.png), [leak-test uploads](evidence/02-portal-leak-test-uploads.png)
@@ -339,7 +339,7 @@
 >
 > **What I have already tried / ruled out:** a single large file (Oasis, 600 rows) does not cause restarts. Short-term spike alone is ruled out by the sequential test.
 >
-> **Suspected cause (with confidence):** High. `services/api/internal/importer/sources.go:31-36`: unbounded `SourceCache` with no eviction, filled at `importer.go:251`, against the 128 MB limit at `docker-compose.yml:60-61`. Stranded invoices because the queue is in memory only (`submit.go:65`), with no re-queue at start-up (`main.go:56-57`).
+> **Suspected cause (with confidence):** High. `services/api/internal/importer/sources.go:31-36`: unbounded `SourceCache` with no eviction, filled at `importer.go:95`, against the 128 MB limit at `docker-compose.yml:60-61`. Stranded invoices because the queue is in memory only (`submit.go:65`), with no re-queue at start-up (`main.go:56-57`).
 >
 > **Workaround in place:** partly. Validated invoices: "Retry stuck invoices" works (tested). Parsed invoices and Processing imports: no workaround from the product.
 >
@@ -479,7 +479,7 @@
 | 12:20 | Reproduced with `samples/sahara-medical-batch-1116.xlsx` on a quiet system | The same result: 8 Accepted, 32 Submitted with no ASP reference. So it is not caused by the morning load; a single 40-invoice batch is enough ([reproduction](evidence/04-sahara-repro-and-resend.txt)) |
 | 12:25 | Status history of a stuck invoice; tried **Retry submission** | History ends at "Submitted – Sent to ASP", with no ASP response stored. Retry is refused: **HTTP 409** "only invoices in status Validated or Failed can be retried". Batch retry re-queues 0 |
 | 12:30 | Simulated Bluepeak's resend: uploaded the same file again | All 40 rejected with AE-BR-09 ("already exists … status 'Accepted'" or "'Submitted'"). The resend added **nothing** at the ASP. So a resend is safe from duplicates, but it does not deliver the 32 either: they are **trapped** |
-| 12:35 | Checked the monitoring | `invoicely_submissions_total` only has the outcomes accepted / rejected / failed (`metrics.go:66-70`), and a 429 increments none of them. So "Submissions by outcome" hides the problem. The only alert rules are for API restarts and 5xx (`rules.yml:10, 50`). Only the ASP-side panel shows throttling. Also, the time-series panel "ASP responses by HTTP status" shows **no 429s at all**: the `code="429"` series is only created when the first 429 arrives, so its first sample is already 32 and `increase()` counts that as 0 (only the codes for submission outcomes are pre-created, `metrics.go:66-70`). The first burst of throttling after any API restart is invisible on that chart ([Prometheus check](evidence/04-prometheus-429-series-start.txt), [screenshot](evidence/04-grafana-submissions-row.png)) |
+| 12:35 | Checked the monitoring | `invoicely_submissions_total` only has the outcomes accepted / rejected / failed (`metrics.go:68-70`), and a 429 increments none of them. So "Submissions by outcome" hides the problem. The only alert rules are for API restarts and 5xx (`rules.yml:10, 50`). Only the ASP-side panel shows throttling. Also, the time-series panel "ASP responses by HTTP status" shows **no 429s at all**: the `code="429"` series is only created when the first 429 arrives, so its first sample is already 32 and `increase()` counts that as 0 (only the codes for submission outcomes are pre-created, `metrics.go:68-70`). The first burst of throttling after any API restart is invisible on that chart ([Prometheus check](evidence/04-prometheus-429-series-start.txt), [screenshot](evidence/04-grafana-submissions-row.png)) |
 | 12:40 | Checked who the 40 invoices are for (the portal showed `SMS-1116-032` going to Coral Reef Resorts LLC) | The batch has **two buyers**: 35 invoices for Emirates Palm Hospital and 5 for **Coral Reef Resorts LLC**. In this morning's batch, the hospital is missing 28 and **Coral Reef Resorts is missing 4** (016, 024, 032, 040). They have not reported it, so they probably have not noticed. Also, which 8 get through depends on timing: 001–008 in the morning run, but 001–007 and 009 in my reproduction (008 throttled). So every invoice has to be checked individually ([buyers](evidence/04-sahara-buyers.txt)) |
 | 12:45 | Update to Daniel (priority change, answers to both questions) | — |
 
@@ -491,7 +491,7 @@
   - `services/api/internal/submit/submit.go:133-155`: response switch has no case for HTTP 429 (or any other unexpected code), so the invoice is left as it is and `Retry-After` is ignored
   - `services/api/main.go:56`: 4 workers send as fast as they can, so any batch over 8 invoices per seller exceeds the burst
   - `services/asp-mock/main.go:35-37` and `:274-283`: the ASP's documented fair-use limit and its 429 response (`docs/architecture.md`, "ASP integration": "the document has not been received and should be sent again later")
-  - `services/api/internal/metrics/metrics.go:66-70`: no submission outcome for throttling, so the dashboard and alerts do not see it
+  - `services/api/internal/metrics/metrics.go:68-70`: no submission outcome for throttling, so the dashboard and alerts do not see it
 - **Why it happens:** The ASP's rule is documented, but the client only handles success, business rejection and server errors. A throttled invoice falls through the switch, with nothing logged at warning or error level.
 - **Evidence:** [DB statuses](evidence/04-sahara-db-statuses.txt), [ASP records](evidence/04-sahara-asp-received.txt), [API and ASP logs](evidence/04-sahara-logs-429.txt), [reproduction, retry and resend test](evidence/04-sahara-repro-and-resend.txt), [scope across customers and metrics](evidence/04-scope-and-metrics.txt), [buyers in the batch](evidence/04-sahara-buyers.txt)
 - **Screenshots:** [Sahara batch in the portal](evidence/04-portal-sahara-batch.png), [invoice status history](evidence/04-portal-sahara-invoice-history.png), [resend rejected as duplicates](evidence/04-portal-sahara-resend-rejected.png), [Grafana "Submissions to ASP" row](evidence/04-grafana-submissions-row.png) (*Submissions by outcome* shows only 8 accepted; *ASP: documents by outcome (ASP side)* shows 8 accepted and 32 throttled; *ASP responses by HTTP status (since API start)* shows HTTP 200 = 13 and HTTP 429 = 32, but the time-series panel above it shows no 429s, see the investigation log at 12:35)
@@ -591,40 +591,94 @@
 
 ### Acknowledgement
 
-- **Sent at (exercise clock):**
+- **Sent at (exercise clock):** 12:35 (email received 12:10; P3 first-response target is 4 h, so due by 16:10. Sent early because she cannot issue any invoices and is clearly frustrated)
 - **Reply:**
 
-> …
+> Subject: RE: your system is broken - all my invoices rejected
+>
+> Dear Hessa,
+>
+> Thank you for writing, and I'm sorry this has held up your invoices. I understand that every invoice in your file was rejected because of the invoice date, even though 13/11/2026 is the correct date, and that your customers are waiting.
+>
+> I'm looking at the file you sent now. Your invoice numbers are still free to use, so nothing is lost, and once we've sorted out the date you can send the same invoices again.
+>
+> I'll send you simple steps to get them through by **14:00 today**.
+>
+> Kind regards,
+> Nitheesh, Product Support, Invoicely Lite
 
 ### Priority and justification
 
-- **Priority:**
-- **Why:**
-- **SLA deadlines I am working to:**
+- **Priority:** P3
+- **Why:** One customer, one cause, and a workaround exists, so it is P3 on the third question in `docs/sla-matrix.md`. Strictly, the product is working as documented, which would be P4. I chose P3 because she cannot issue any invoices until she fixes the file, her customers are waiting, and a P4 response (one business day) would be far too slow for a blocked small business.
+- **SLA deadlines I am working to:** first response by 16:10 (sent 12:35) / update daily, but I promised steps by 14:00 / resolution target 3 days (Thursday 19 Nov); aimed for the same day.
 
 ### Investigation log
 
+> Times are mapped onto the exercise clock (Monday 16 Nov 2026), between P1 updates on Incidents 2 and 4. The work itself was done in real time; see the time log at the end. My 40 test uploads of this file for the Incident 2 memory test show up in Ghaf Tree Café's batch list; they are mine, not the customer's.
+
 | Time (exercise clock) | What I checked / did | What I found |
 |---|---|---|
-| | | |
+| 12:35 | Acknowledged Hessa | — |
+| 12:40 | Read the error against `docs/template-field-guide.md` (Dates) | AE-BR-04 is documented: dates must be `YYYY-MM-DD` text or real Excel date cells. Text like `13/11/2026` is rejected on purpose, because `05/11/2026` means 5 November in the UAE and 11 May in the US, and the portal must never guess a date on a tax invoice |
+| 13:05 | Looked inside her file (`samples/ghaf-cafe-nov-2026.xlsx`) | The dates are **typed as text** (`inlineStr` cells containing `13/11/2026`), not real Excel dates, in both **Invoice issue date** and **Payment due date** ([cell types](evidence/05-ghaf-file-date-cells.txt)) |
+| 13:10 | Read how the portal reads dates (`sheet.go:97`, `sheet.go:167-183`, `validate.go:113-118`) | Cells are read raw, so a real Excel date arrives as its serial number and is accepted, whatever display format Excel uses. Text is only accepted in `YYYY-MM-DD`. So "Format Cells → Custom" in the docs works only if the cells are real dates |
+| 13:15 | Checked the rejected invoices from this morning's replay | All 4 rejected with AE-BR-04. Error counts are 4, 4, 6 and 2 per invoice: 2 date columns × the number of lines. **The due date fails too**, but the message she quoted mentions only the issue date: the status history shows only the first error (`importer.go:104-105`). If she fixed only the issue date, she would be rejected again ([test results](evidence/05-ghaf-fix-tests.txt)) |
+| 13:20 | Tested both documented fixes on corrected copies of her file | **Fix A** (dates as `2026-11-13` text): all 4 **Accepted**, with her original invoice numbers GTC-118 to 121 and the correct dates (13, 14 and 15 Nov). **Fix B** (real Excel date cells): all 4 **Accepted**, correct dates ([test results](evidence/05-ghaf-fix-tests.txt), [Fix A file](evidence/05-ghaf-fixA-iso-text.xlsx), [Fix B file](evidence/05-ghaf-fixB-real-dates.xlsx)) |
+| 13:40 | Resolution reply sent | — |
 
 ### Root cause
 
-- **What happened:**
-- **Where** (component, `file:line`):
-- **Why it happens:**
-- **Evidence:**
-- **Confidence and open questions:**
+- **What happened:** The invoice dates in her file were typed as text in the day/month/year form (`13/11/2026`). The portal only accepts text dates written year-month-day (`2026-11-13`), or real Excel date cells. It rejects other text dates on purpose, because some of them (like `05/11/2026`) can be read two ways, and a tax invoice date must never be guessed.
+- **Where:** the date rule `services/api/internal/validate/validate.go:113-118` (AE-BR-04) using `services/api/internal/sheet/sheet.go:167-183` (`ParseDate`); documented in `docs/template-field-guide.md`, section "Dates".
+- **Why it happens:** The product is working as documented; this is not a defect. Two things made it harder for her than it needs to be: the error message is technical ("YYYY-MM-DD format") and does not say how to fix it, and only the first error is shown in the summary, so the second date column is easy to miss.
+- **Evidence:** [date cell types in her file](evidence/05-ghaf-file-date-cells.txt), [original rejections and both fix tests](evidence/05-ghaf-fix-tests.txt), [Fix A file](evidence/05-ghaf-fixA-iso-text.xlsx), [Fix B file](evidence/05-ghaf-fixB-real-dates.xlsx)
+- **Screenshots:** [original upload rejected: 4/4 invoices, error counts 4, 4, 6, 2 = both date columns on every line](evidence/05-portal-ghaf-rejected-batch.png), [corrected file accepted: same invoice numbers, dates 2026-11-13 to 15, ASP references](evidence/05-portal-ghaf-fixed-accepted.png)
+- **Confidence and open questions:** High: the cause is in the documentation, the code agrees, and both fixes were tested on her actual file with her own invoice numbers. Open: I can't see how her copy of Excel is set up, so in the reply I give the method that works whichever way Excel displays the date.
 
 ### Customer resolution reply OR escalation note
 
-- **Which one and why:**
+- **Which one and why:** Customer resolution reply, no escalation. Per `docs/escalation-policy.md`, the product is working as documented, so I explain it, help her fix her side, and raise the unclear message as a suggestion rather than an incident (see Prevention ideas).
 
-> …
+> **Resolution reply to Hessa (sent 13:40):**
+>
+> Dear Hessa,
+>
+> You're right that 13/11/2026 is the correct date, and you haven't done anything wrong with your invoices. The problem is only the way the date is written in the file.
+>
+> **Why it happened:** our portal reads dates like 05/11/2026 very strictly, because the same text means 5 November here but 11 May in other countries, and a tax invoice date must never be guessed. So it only accepts dates written as **year-month-day**, for example **2026-11-13**.
+>
+> **How to fix it (about 2 minutes):**
+> 1. Open your file in Excel.
+> 2. In the column **Invoice issue date**, retype each date as year-month-day, for example **2026-11-13** instead of 13/11/2026.
+> 3. Do the same in the column **Payment due date**, for example **2026-12-13** instead of 13/12/2026. This one is easy to miss, because the error message only mentioned the first column.
+> 4. Excel may change how the date looks after you type it. That's fine, it will still work.
+> 5. Save the file and upload it again with the **same invoice numbers**. Rejected invoices don't use up their numbers.
+>
+> I've tested this on a copy of the file you sent me, and all 4 invoices went through with the right dates (13, 14 and 15 November).
+>
+> If you'd like, send me the corrected file before you upload it and I'll check it for you. Once you've uploaded it, I'll confirm that your invoices have reached your customers.
+>
+> I've also passed on your feedback that the error message should explain this clearly. You shouldn't have to work it out yourself.
+>
+> Kind regards,
+> Nitheesh, Product Support, Invoicely Lite
 
 ### Workaround offered
 
+- Retype the dates in both date columns as `YYYY-MM-DD` (tested: Fix A accepted). If Excel turns them into real date cells, that also works (tested: Fix B accepted).
+- For long lists, the helper formula in `docs/template-field-guide.md` converts text `dd/mm/yyyy` to `yyyy-mm-dd`.
+- Offered to check her corrected file before she uploads, and to confirm delivery afterwards.
+
 ### Prevention ideas
+
+These are product suggestions, not an incident escalation.
+
+- Make the AE-BR-04 message say how to fix it in plain words, for example: "Write the date as year-month-day, for example 2026-11-13, or use an Excel date cell."
+- Show all of an invoice's errors in the summary, not only the first, so a customer doesn't fix one column and get rejected again for the other.
+- Pre-format the date columns in the official template as date cells with a `yyyy-mm-dd` display, and add data validation, so typing `13/11/2026` is caught in Excel before upload.
+- Add a short "Dates" hint on the upload page, linking to the field guide.
+- Track AE-BR-04 rejections per customer (the dashboard already has "Validation failures by rule") and contact first-time customers proactively.
 
 ---
 
